@@ -14,6 +14,9 @@
 # Web 引擎
 , webkitgtk_4_1
 , libsoup_3
+# 图形/渲染
+, vulkan-loader
+, libGL
 # X11/键盘支持
 , xorg
 , libxkbcommon
@@ -55,6 +58,10 @@ stdenv.mkDerivation rec {
     webkitgtk_4_1
     libsoup_3
 
+    # 图形/渲染支持
+    vulkan-loader
+    libGL
+
     # X11 支持
     xorg.libX11
     xorg.libxcb
@@ -83,7 +90,8 @@ stdenv.mkDerivation rec {
 
     install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-unwrapped
 
-    makeWrapper $out/bin/.longbridge-unwrapped $out/bin/longbridge
+    makeWrapper $out/bin/.longbridge-unwrapped $out/bin/longbridge \
+      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ vulkan-loader libGL ]}"
 
     install -Dm644 usr/share/icons/hicolor/512x512/apps/longbridge.png \
       $out/share/icons/hicolor/512x512/apps/longbridge.png
