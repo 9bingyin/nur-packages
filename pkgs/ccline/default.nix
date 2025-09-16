@@ -6,12 +6,12 @@
 
 rustPlatform.buildRustPackage {
   pname = "ccline";
-  version = "unstable-2025-09-16";
+  version = "1.0.5";
 
   src = fetchFromGitHub {
     owner = "Haleclipse";
     repo = "CCometixLine";
-    rev = "master";
+    rev = "85e9c366ad51974276ad204322e8a77323e6613c";
     hash = "sha256-3mb8m0uTtTpPBGM48VGWavD9Q7YALGrwoTqQSIR4t5E=";
   };
 
@@ -20,10 +20,8 @@ rustPlatform.buildRustPackage {
   doCheck = false;
 
   postInstall = ''
-    # Upstream binary is likely named 'ccometixline'; provide a friendly 'ccline' alias
-    if [ -x "$out/bin/ccometixline" ] && [ ! -e "$out/bin/ccline" ]; then
-      ln -s ccometixline "$out/bin/ccline"
-    fi
+    # Rename binary to match expected command name
+    mv "$out/bin/ccometixline" "$out/bin/ccline"
   '';
 
   meta = with lib; {
