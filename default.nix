@@ -15,6 +15,7 @@
   overlays = import ./overlays; # nixpkgs overlays
 
   longbridge = pkgs.callPackage ./pkgs/longbridge { };
+  ccline = pkgs.callPackage ./pkgs/ccline { };
   # some-qt5-package = pkgs.libsForQt5.callPackage ./pkgs/some-qt5-package { };
   # ...
 }
