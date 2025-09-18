@@ -89,7 +89,8 @@ stdenv.mkDerivation rec {
     description = "Professional trading platform for stocks and financial instruments";
     homepage = "https://longbridge.com/";
     license = licenses.unfree;
-    maintainers = with maintainers; [ bingyin ];
+    # 在 NUR 中不依赖 nixpkgs 的 maintainers 列表，避免 CI 评估失败
+    maintainers = [ ];
     platforms = [ "x86_64-linux" ];
     sourceProvenance = with sourceTypes; [ binaryNativeCode ];
     mainProgram = "longbridge";

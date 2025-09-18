@@ -30,6 +30,7 @@ rustPlatform.buildRustPackage {
     license = licenses.mit;
     mainProgram = "ccline";
     platforms = platforms.linux;
-    maintainers = with maintainers; [ bingyin ];
+    # 在 NUR 中不依赖 nixpkgs 的 maintainers 列表，避免 CI 评估失败
+    maintainers = [ ];
   };
 }
