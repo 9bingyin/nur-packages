@@ -6,7 +6,9 @@
 # commands such as:
 #     nix-build -A mypackage
 
-{ pkgs ? import <nixpkgs> { } }:
+{
+  pkgs ? import <nixpkgs> { },
+}:
 
 {
   # The `lib`, `modules`, and `overlays` names are special
@@ -16,6 +18,7 @@
 
   longbridge = pkgs.callPackage ./pkgs/longbridge { };
   ccline = pkgs.callPackage ./pkgs/ccline { };
+  mfkey-desktop = pkgs.callPackage ./pkgs/mfkey-desktop { };
   # some-qt5-package = pkgs.libsForQt5.callPackage ./pkgs/some-qt5-package { };
   # ...
 }
