@@ -25,11 +25,11 @@
 
 stdenv.mkDerivation rec {
   pname = "longbridge";
-  version = "0.7.1";
+  version = "0.8.0";
 
   src = fetchurl {
     url = "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v${version}-linux-x86_64.deb";
-    hash = "sha256-PKcWXxWZfH/diqmSkE/kHTV4Qeo0S9p/OugGVLxJavc=";
+    hash = "sha256-9QPCOe9B7UIwLrfmvBsebBFQ+eFJItdOQbi6WZtedwc=";
   };
 
   nativeBuildInputs = [
