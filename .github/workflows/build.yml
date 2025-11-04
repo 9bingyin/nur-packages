@@ -70,6 +70,41 @@ jobs:
           -I $PWD
     - name: Build nix packages
       run: nix shell -f '<nixpkgs>' nix-build-uncached -c nix-build-uncached ci.nix -A cacheOutputs
+    - name: Run package metadata tests
+      run: |
+        echo "Running metadata tests..."
+        nix-build test-packages.nix -A metadata.longbridge
+        nix-build test-packages.nix -A metadata.ccline
+        nix-build test-packages.nix -A metadata.mfkey-desktop
+        echo "✓ All metadata tests passed"
+    - name: Run package installation tests
+      run: |
+        echo "Running installation tests..."
+        nix-build test-packages.nix -A install.longbridge
+        nix-build test-packages.nix -A install.ccline
+        nix-build test-packages.nix -A install.mfkey-desktop
+        echo "✓ All installation tests passed"
+    - name: Run package binary tests
+      run: |
+        echo "Running binary tests..."
+        nix-build test-packages.nix -A binaries.ccline
+        nix-build test-packages.nix -A binaries.mfkey-desktop
+        echo "✓ All binary tests passed"
+    - name: Test package instantiation
+      run: |
+        echo "Testing individual package instantiation..."
+        nix-instantiate --eval -E '(import ./default.nix { }).longbridge.name'
+        nix-instantiate --eval -E '(import ./default.nix { }).ccline.name'
+        nix-instantiate --eval -E '(import ./default.nix { }).mfkey-desktop.name'
+        echo "✓ All packages can be instantiated"
+    - name: Verify package outputs
+      run: |
+        echo "Verifying package outputs..."
+        for pkg in longbridge ccline mfkey-desktop; do
+          echo "Checking $pkg..."
+          nix-build -A "$pkg" --no-out-link
+        done
+        echo "✓ All packages build successfully"
     - name: Trigger NUR update
       # Don't replace <YOUR_REPO_NAME> here!
       if: ${{ matrix.nurRepo != '<YOUR_REPO_NAME>' }}
