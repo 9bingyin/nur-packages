@@ -6,16 +6,16 @@
 
 rustPlatform.buildRustPackage {
   pname = "ccline";
-  version = "1.0.5";
+  version = "1.0.8";
 
   src = fetchFromGitHub {
     owner = "Haleclipse";
     repo = "CCometixLine";
-    rev = "85e9c366ad51974276ad204322e8a77323e6613c";
-    hash = "sha256-3mb8m0uTtTpPBGM48VGWavD9Q7YALGrwoTqQSIR4t5E=";
+    rev = "e826bef808af86496eda8840156c71e3ef8d0ca6";
+    hash = lib.fakeHash;
   };
 
-  cargoHash = "sha256-HI0PAz/zr0dznY46R6SGGaA6LSZyd01YNwsXhNQXtgE=";
+  cargoHash = lib.fakeHash;
 
   doCheck = false;
 
