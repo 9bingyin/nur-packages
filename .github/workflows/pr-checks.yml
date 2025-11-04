@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - master
+    paths:
+      - '**.nix'
+      - 'flake.lock'
+      - '.github/workflows/pr-checks.yml'
   # Allow manual trigger for testing
   workflow_dispatch:
 

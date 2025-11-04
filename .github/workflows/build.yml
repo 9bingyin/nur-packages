@@ -1,15 +1,21 @@
 name: "Build and populate cache"
 on:
   pull_request:
+    paths:
+      - '**.nix'
+      - 'flake.lock'
+      - '.github/workflows/build.yml'
   push:
     branches:
       - main
       - master
+    paths:
+      - '**.nix'
+      - 'flake.lock'
+      - '.github/workflows/build.yml'
   schedule:
-    # rebuild everyday at 2:51
-    # TIP: Choose a random time here so not all repositories are build at once:
-    # https://www.random.org/clock-times/?num=1&earliest=01%3A00&latest=08%3A00&interval=5&format=html&rnd=new
-    - cron:  '51 2 * * *'
+    # Daily test run at 12:00 UTC
+    - cron:  '0 12 * * *'
   workflow_dispatch:
 jobs:
   tests:
