@@ -23,8 +23,48 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
+      with:
+        fetch-depth: 0  # Fetch all history to detect changed files
+
+    - name: Detect changed packages
+      id: changes
+      run: |
+        echo "Detecting changed files in PR..."
+
+        # Get the base branch (target of the PR)
+        BASE_REF="${{ github.event.pull_request.base.sha || github.event.before }}"
+        HEAD_REF="${{ github.sha }}"
+
+        echo "Comparing $BASE_REF...$HEAD_REF"
+
+        # Get all changed files
+        CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" || echo "")
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+
+        # Check if core files were modified (if so, test all packages)
+        if echo "$CHANGED_FILES" | grep -qE '^(default\.nix|test-packages\.nix|\.github/workflows/)'; then
+          echo "Core files modified, testing all packages"
+          echo "test_all=true" >> $GITHUB_OUTPUT
+          echo "changed_packages=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Extract package names from changed files in pkgs/ directory
+        CHANGED_PACKAGES=$(echo "$CHANGED_FILES" | grep '^pkgs/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+
+        if [ -z "$CHANGED_PACKAGES" ]; then
+          echo "No package files changed, skipping tests"
+          echo "test_all=false" >> $GITHUB_OUTPUT
+          echo "changed_packages=" >> $GITHUB_OUTPUT
+        else
+          echo "Changed packages: $CHANGED_PACKAGES"
+          echo "test_all=false" >> $GITHUB_OUTPUT
+          echo "changed_packages=$CHANGED_PACKAGES" >> $GITHUB_OUTPUT
+        fi
 
     - name: Install nix
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       uses: cachix/install-nix-action@v31
       with:
         nix_path: "${{ matrix.nixPath }}"
@@ -33,9 +73,11 @@ jobs:
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
     - name: Show nixpkgs version
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       run: nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version'
 
     - name: Check evaluation
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       run: |
         nix-env -f . -qa \* --meta --xml \
           --allowed-uris https://static.rust-lang.org \
@@ -47,29 +89,54 @@ jobs:
       env:
         NIXPKGS_ALLOW_UNFREE: 1
 
-    - name: Discover all packages
-      id: discover
+    - name: Run package tests
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       run: |
-        echo "Discovering packages..."
-        PACKAGES=$(nix-instantiate --eval --strict --json -E '(import ./test-packages.nix { }).packageNamesList' | jq -r '.[]' | tr '\n' ' ')
-        echo "Found packages: $PACKAGES"
-        echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
-      env:
-        NIXPKGS_ALLOW_UNFREE: 1
+        if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "Running comprehensive test suite for all packages..."
+          echo "This will test: metadata, installation, and binary execution"
+          nix-build test-packages.nix -A all --no-out-link
+          echo "✓ All package tests passed successfully!"
+        else
+          echo "Running tests for changed packages only: ${{ steps.changes.outputs.changed_packages }}"
+          for pkg in ${{ steps.changes.outputs.changed_packages }}; do
+            echo "Testing $pkg..."
 
-    - name: Run all package tests
-      run: |
-        echo "Running comprehensive test suite for all packages..."
-        echo "This will test: metadata, installation, and binary execution"
-        nix-build test-packages.nix -A all --no-out-link
-        echo "✓ All package tests passed successfully!"
+            # Test metadata
+            echo "  → Testing metadata..."
+            nix-build test-packages.nix -A "metadata.$pkg" --no-out-link
+
+            # Test installation
+            echo "  → Testing installation..."
+            nix-build test-packages.nix -A "install.$pkg" --no-out-link
+
+            # Test binary (if applicable)
+            if nix-instantiate --eval --strict -E "(builtins.hasAttr \"$pkg\" (import ./test-packages.nix { }).binaries)" 2>/dev/null | grep -q true; then
+              echo "  → Testing binary..."
+              nix-build test-packages.nix -A "binaries.$pkg" --no-out-link
+            else
+              echo "  → Skipping binary test (not applicable)"
+            fi
+
+            echo "✓ $pkg tests passed"
+          done
+          echo "✓ All changed package tests passed successfully!"
+        fi
       env:
         NIXPKGS_ALLOW_UNFREE: 1
 
     - name: Test package instantiation
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       run: |
-        echo "Testing individual package instantiation..."
-        for pkg in ${{ steps.discover.outputs.packages }}; do
+        if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "Testing individual package instantiation for all packages..."
+          PACKAGES=$(nix-instantiate --eval --strict --json -E '(import ./test-packages.nix { }).packageNamesList' | jq -r '.[]' | tr '\n' ' ')
+        else
+          echo "Testing individual package instantiation for changed packages..."
+          PACKAGES="${{ steps.changes.outputs.changed_packages }}"
+        fi
+
+        for pkg in $PACKAGES; do
           echo "Checking $pkg..."
           nix-instantiate --eval -E "(import ./default.nix { pkgs = import <nixpkgs> { config.allowUnfree = true; }; }).$pkg.name"
         done
@@ -78,9 +145,17 @@ jobs:
         NIXPKGS_ALLOW_UNFREE: 1
 
     - name: Verify package outputs
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       run: |
-        echo "Verifying package outputs..."
-        for pkg in ${{ steps.discover.outputs.packages }}; do
+        if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "Verifying package outputs for all packages..."
+          PACKAGES=$(nix-instantiate --eval --strict --json -E '(import ./test-packages.nix { }).packageNamesList' | jq -r '.[]' | tr '\n' ' ')
+        else
+          echo "Verifying package outputs for changed packages..."
+          PACKAGES="${{ steps.changes.outputs.changed_packages }}"
+        fi
+
+        for pkg in $PACKAGES; do
           echo "Building $pkg..."
           NIXPKGS_ALLOW_UNFREE=1 nix-build -A "$pkg" --no-out-link --arg pkgs 'import <nixpkgs> { config.allowUnfree = true; }'
         done
@@ -93,8 +168,21 @@ jobs:
       run: |
         echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        if [ $? -eq 0 ]; then
-          echo "✅ All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.changes.outputs.changed_packages }}" == "" ] && [ "${{ steps.changes.outputs.test_all }}" != "true" ]; then
+          echo "ℹ️ No package files were changed in this PR. Tests were skipped." >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "🔍 Core files modified - tested all packages" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
         else
-          echo "❌ Some tests failed. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+          echo "🎯 Tested changed packages only: ${{ steps.changes.outputs.changed_packages }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
         fi
