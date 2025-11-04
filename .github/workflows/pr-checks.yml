@@ -16,11 +16,26 @@ jobs:
   tests:
     name: Package Tests
     runs-on: ubuntu-latest
+    env:
+      GIT_SSL_NO_VERIFY: 'true'
     strategy:
       matrix:
         nixPath:
           - nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/nixpkgs-unstable.tar.gz
     steps:
+    - name: Maximize build space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 16384
+        temp-reserve-mb: 2048
+        swap-size-mb: 4096
+        build-mount-path: '/nix'
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
+
     - name: Checkout repository
       uses: actions/checkout@v5
       with:
@@ -63,14 +78,42 @@ jobs:
           echo "changed_packages=$CHANGED_PACKAGES" >> $GITHUB_OUTPUT
         fi
 
+    - name: Set up QEMU
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      uses: docker/setup-qemu-action@v3
+      with:
+        image: tonistiigi/binfmt:latest
+        platforms: all
+
     - name: Install nix
       if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
       uses: cachix/install-nix-action@v31
       with:
         nix_path: "${{ matrix.nixPath }}"
         extra_nix_config: |
-          experimental-features = nix-command flakes
+          experimental-features = nix-command flakes ca-derivations
+          extra-experimental-features = nix-command flakes ca-derivations
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+          extra-platforms = i686-linux aarch64-linux
+          keep-going = true
+          log-lines = 25
+          substituters = https://cache.nixos.org/ https://nix-community.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+
+    - name: Set nix daemon tmpdir path
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: |
+        sudo mkdir -p /nix/tmpdir
+        sudo chown "$(whoami)" /nix/tmpdir
+
+        cat > override.conf <<EOF
+        [Service]
+        Environment="TMPDIR=/nix/tmpdir"
+        EOF
+        sudo mkdir -p /etc/systemd/system/nix-daemon.service.d/
+        sudo mv override.conf /etc/systemd/system/nix-daemon.service.d/override.conf
+        sudo systemctl daemon-reload
+        sudo systemctl restart nix-daemon
 
     - name: Show nixpkgs version
       if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
@@ -95,7 +138,7 @@ jobs:
         if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
           echo "Running comprehensive test suite for all packages..."
           echo "This will test: metadata, installation, and binary execution"
-          nix-build test-packages.nix -A all --no-out-link
+          env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A all --no-out-link
           echo "✓ All package tests passed successfully!"
         else
           echo "Running tests for changed packages only: ${{ steps.changes.outputs.changed_packages }}"
@@ -104,16 +147,16 @@ jobs:
 
             # Test metadata
             echo "  → Testing metadata..."
-            nix-build test-packages.nix -A "metadata.$pkg" --no-out-link
+            env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A "metadata.$pkg" --no-out-link
 
             # Test installation
             echo "  → Testing installation..."
-            nix-build test-packages.nix -A "install.$pkg" --no-out-link
+            env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A "install.$pkg" --no-out-link
 
             # Test binary (if applicable)
             if nix-instantiate --eval --strict -E "(builtins.hasAttr \"$pkg\" (import ./test-packages.nix { }).binaries)" 2>/dev/null | grep -q true; then
               echo "  → Testing binary..."
-              nix-build test-packages.nix -A "binaries.$pkg" --no-out-link
+              env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A "binaries.$pkg" --no-out-link
             else
               echo "  → Skipping binary test (not applicable)"
             fi
@@ -157,7 +200,7 @@ jobs:
 
         for pkg in $PACKAGES; do
           echo "Building $pkg..."
-          NIXPKGS_ALLOW_UNFREE=1 nix-build -A "$pkg" --no-out-link --arg pkgs 'import <nixpkgs> { config.allowUnfree = true; }'
+          NIXPKGS_ALLOW_UNFREE=1 env TMPDIR=/nix/tmpdir nix-build -A "$pkg" --no-out-link --arg pkgs 'import <nixpkgs> { config.allowUnfree = true; }'
         done
         echo "✓ All packages build successfully"
       env:
