@@ -1,8 +1,19 @@
 # This file defines tests for all packages in the repository
+# Tests are automatically generated for all non-reserved packages
 { pkgs ? import <nixpkgs> { config.allowUnfree = true; } }:
 
+with builtins;
 let
   nurPkgs = import ./default.nix { inherit pkgs; };
+
+  # Reserved attribute names that are not packages
+  isReserved = n: n == "lib" || n == "overlays" || n == "modules";
+
+  # Check if an attribute is a derivation (actual package)
+  isDerivation = p: isAttrs p && p ? type && p.type == "derivation";
+
+  # Get all package names (non-reserved attributes that are derivations)
+  packageNames = filter (n: !isReserved n && isDerivation nurPkgs.${n}) (attrNames nurPkgs);
 
   # Test that a package builds and has correct metadata
   testPackage = name: pkg:
@@ -86,29 +97,33 @@ let
       echo "Installation tests passed for ${name}" > $out/result
     '';
 
+  # Helper to create attribute set from list of names
+  nameValuePair = n: v: { name = n; value = v; };
+
+  # Generate tests for all packages
+  genMetadataTests = listToAttrs (map (name: nameValuePair name (testPackage name nurPkgs.${name})) packageNames);
+
+  genInstallTests = listToAttrs (map (name: nameValuePair name (testInstall name nurPkgs.${name})) packageNames);
+
+  # Binary tests - skip GUI apps that require X11
+  # You can customize this list based on your packages
+  skipBinaryTest = name:
+    # longbridge is a GUI app that requires X11, skip it
+    name == "longbridge";
+
+  binaryTestPackages = filter (name: !skipBinaryTest name) packageNames;
+  genBinaryTests = listToAttrs (map (name: nameValuePair name (testBinary name nurPkgs.${name})) binaryTestPackages);
+
 in
 rec {
   # Metadata tests for all packages
-  metadata = {
-    longbridge = testPackage "longbridge" nurPkgs.longbridge;
-    ccline = testPackage "ccline" nurPkgs.ccline;
-    mfkey-desktop = testPackage "mfkey-desktop" nurPkgs.mfkey-desktop;
-  };
+  metadata = genMetadataTests;
 
-  # Binary execution tests
-  binaries = {
-    # Skip longbridge as it's a GUI app that requires X11
-    # longbridge = testBinary "longbridge" nurPkgs.longbridge;
-    ccline = testBinary "ccline" nurPkgs.ccline;
-    mfkey-desktop = testBinary "mfkey-desktop" nurPkgs.mfkey-desktop;
-  };
+  # Binary execution tests (excluding GUI apps)
+  binaries = genBinaryTests;
 
   # Installation tests
-  install = {
-    longbridge = testInstall "longbridge" nurPkgs.longbridge;
-    ccline = testInstall "ccline" nurPkgs.ccline;
-    mfkey-desktop = testInstall "mfkey-desktop" nurPkgs.mfkey-desktop;
-  };
+  install = genInstallTests;
 
   # Combine all tests
   all = pkgs.symlinkJoin {
@@ -118,4 +133,7 @@ rec {
       (pkgs.lib.attrValues binaries) ++
       (pkgs.lib.attrValues install);
   };
+
+  # Export package list for use in CI
+  packageNamesList = packageNames;
 }

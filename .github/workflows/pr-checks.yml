@@ -47,41 +47,32 @@ jobs:
       env:
         NIXPKGS_ALLOW_UNFREE: 1
 
-    - name: Run package metadata tests
+    - name: Discover all packages
+      id: discover
       run: |
-        echo "Running metadata tests..."
-        nix-build test-packages.nix -A metadata.longbridge
-        nix-build test-packages.nix -A metadata.ccline
-        nix-build test-packages.nix -A metadata.mfkey-desktop
-        echo "✓ All metadata tests passed"
+        echo "Discovering packages..."
+        PACKAGES=$(nix-instantiate --eval --strict --json -E '(import ./test-packages.nix { }).packageNamesList' | jq -r '.[]' | tr '\n' ' ')
+        echo "Found packages: $PACKAGES"
+        echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
       env:
         NIXPKGS_ALLOW_UNFREE: 1
 
-    - name: Run package installation tests
+    - name: Run all package tests
       run: |
-        echo "Running installation tests..."
-        nix-build test-packages.nix -A install.longbridge
-        nix-build test-packages.nix -A install.ccline
-        nix-build test-packages.nix -A install.mfkey-desktop
-        echo "✓ All installation tests passed"
-      env:
-        NIXPKGS_ALLOW_UNFREE: 1
-
-    - name: Run package binary tests
-      run: |
-        echo "Running binary tests..."
-        nix-build test-packages.nix -A binaries.ccline
-        nix-build test-packages.nix -A binaries.mfkey-desktop
-        echo "✓ All binary tests passed"
+        echo "Running comprehensive test suite for all packages..."
+        echo "This will test: metadata, installation, and binary execution"
+        nix-build test-packages.nix -A all --no-out-link
+        echo "✓ All package tests passed successfully!"
       env:
         NIXPKGS_ALLOW_UNFREE: 1
 
     - name: Test package instantiation
       run: |
         echo "Testing individual package instantiation..."
-        nix-instantiate --eval -E '(import ./default.nix { pkgs = import <nixpkgs> { config.allowUnfree = true; }; }).longbridge.name'
-        nix-instantiate --eval -E '(import ./default.nix { pkgs = import <nixpkgs> { config.allowUnfree = true; }; }).ccline.name'
-        nix-instantiate --eval -E '(import ./default.nix { pkgs = import <nixpkgs> { config.allowUnfree = true; }; }).mfkey-desktop.name'
+        for pkg in ${{ steps.discover.outputs.packages }}; do
+          echo "Checking $pkg..."
+          nix-instantiate --eval -E "(import ./default.nix { pkgs = import <nixpkgs> { config.allowUnfree = true; }; }).$pkg.name"
+        done
         echo "✓ All packages can be instantiated"
       env:
         NIXPKGS_ALLOW_UNFREE: 1
@@ -89,8 +80,8 @@ jobs:
     - name: Verify package outputs
       run: |
         echo "Verifying package outputs..."
-        for pkg in longbridge ccline mfkey-desktop; do
-          echo "Checking $pkg..."
+        for pkg in ${{ steps.discover.outputs.packages }}; do
+          echo "Building $pkg..."
           NIXPKGS_ALLOW_UNFREE=1 nix-build -A "$pkg" --no-out-link --arg pkgs 'import <nixpkgs> { config.allowUnfree = true; }'
         done
         echo "✓ All packages build successfully"
