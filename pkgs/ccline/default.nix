@@ -12,7 +12,7 @@ rustPlatform.buildRustPackage {
     owner = "Haleclipse";
     repo = "CCometixLine";
     rev = "e826bef808af86496eda8840156c71e3ef8d0ca6";
-    hash = lib.fakeHash;
+    hash = "sha256-OcK0UZDHAJTQOVqBUZbI9g7Q/ChYJ5Ukc+hdDUi6tPM=";
   };
 
   cargoHash = lib.fakeHash;
