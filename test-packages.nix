@@ -87,7 +87,7 @@ let
     '';
 
 in
-{
+rec {
   # Metadata tests for all packages
   metadata = {
     longbridge = testPackage "longbridge" nurPkgs.longbridge;
