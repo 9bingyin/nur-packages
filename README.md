@@ -35,3 +35,30 @@ Uncomment this if you use travis:
 -->
 [![Cachix Cache](https://img.shields.io/badge/cachix-<YOUR_CACHIX_CACHE_NAME>-blue.svg)](https://<YOUR_CACHIX_CACHE_NAME>.cachix.org)
 
+## PR Quality Checks
+
+This repository includes comprehensive test suite for all packages. The PR checks workflow automatically runs on all pull requests to ensure code quality.
+
+### Tests Included
+
+- **Metadata validation**: Ensures all packages have required metadata (description, license, platforms)
+- **Installation tests**: Verifies packages install correctly with all required files
+- **Binary tests**: Checks that executables are available and functional
+- **Package instantiation**: Validates packages can be instantiated without errors
+
+### Configuring Required Checks
+
+To enforce tests before merging PRs:
+
+1. Go to your repository Settings → Branches
+2. Add a branch protection rule for `main` (or `master`)
+3. Enable "Require status checks to pass before merging"
+4. Select "Package Tests" from the list of status checks
+5. Enable "Require branches to be up to date before merging" (recommended)
+
+This ensures all PRs must pass tests before they can be merged.
+
+### Handling Unfree Packages
+
+The test suite is configured to handle unfree packages (like `longbridge`). All test commands include `NIXPKGS_ALLOW_UNFREE=1` to prevent evaluation errors.
+

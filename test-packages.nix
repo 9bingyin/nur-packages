@@ -1,5 +1,5 @@
 # This file defines tests for all packages in the repository
-{ pkgs ? import <nixpkgs> { } }:
+{ pkgs ? import <nixpkgs> { config.allowUnfree = true; } }:
 
 let
   nurPkgs = import ./default.nix { inherit pkgs; };
