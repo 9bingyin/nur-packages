@@ -59,7 +59,7 @@ jobs:
         remove-docker-images: 'true'
 
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
