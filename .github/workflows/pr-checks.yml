@@ -1,0 +1,231 @@
+name: "PR Quality Checks"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '**.nix'
+      - 'flake.lock'
+      - '.github/workflows/pr-checks.yml'
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Package Tests
+    runs-on: ubuntu-latest
+    env:
+      GIT_SSL_NO_VERIFY: 'true'
+    strategy:
+      matrix:
+        nixPath:
+          - nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/nixpkgs-unstable.tar.gz
+    steps:
+    - name: Maximize build space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 16384
+        temp-reserve-mb: 2048
+        swap-size-mb: 4096
+        build-mount-path: '/nix'
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
+
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0  # Fetch all history to detect changed files
+
+    - name: Detect changed packages
+      id: changes
+      run: |
+        echo "Detecting changed files in PR..."
+
+        # Get the base branch (target of the PR)
+        BASE_REF="${{ github.event.pull_request.base.sha || github.event.before }}"
+        HEAD_REF="${{ github.sha }}"
+
+        echo "Comparing $BASE_REF...$HEAD_REF"
+
+        # Get all changed files
+        CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" || echo "")
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+
+        # Check if core files were modified (if so, test all packages)
+        if echo "$CHANGED_FILES" | grep -qE '^(default\.nix|test-packages\.nix|\.github/workflows/)'; then
+          echo "Core files modified, testing all packages"
+          echo "test_all=true" >> $GITHUB_OUTPUT
+          echo "changed_packages=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Extract package names from changed files in pkgs/ directory
+        CHANGED_PACKAGES=$(echo "$CHANGED_FILES" | grep '^pkgs/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+
+        if [ -z "$CHANGED_PACKAGES" ]; then
+          echo "No package files changed, skipping tests"
+          echo "test_all=false" >> $GITHUB_OUTPUT
+          echo "changed_packages=" >> $GITHUB_OUTPUT
+        else
+          echo "Changed packages: $CHANGED_PACKAGES"
+          echo "test_all=false" >> $GITHUB_OUTPUT
+          echo "changed_packages=$CHANGED_PACKAGES" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set up QEMU
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      uses: docker/setup-qemu-action@v3
+      with:
+        image: tonistiigi/binfmt:latest
+        platforms: all
+
+    - name: Install nix
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: "${{ matrix.nixPath }}"
+        extra_nix_config: |
+          experimental-features = nix-command flakes ca-derivations
+          extra-experimental-features = nix-command flakes ca-derivations
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+          extra-platforms = i686-linux aarch64-linux
+          keep-going = true
+          log-lines = 25
+          substituters = https://cache.nixos.org/ https://nix-community.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+
+    - name: Set nix daemon tmpdir path
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: |
+        sudo mkdir -p /nix/tmpdir
+        sudo chown "$(whoami)" /nix/tmpdir
+
+        cat > override.conf <<EOF
+        [Service]
+        Environment="TMPDIR=/nix/tmpdir"
+        EOF
+        sudo mkdir -p /etc/systemd/system/nix-daemon.service.d/
+        sudo mv override.conf /etc/systemd/system/nix-daemon.service.d/override.conf
+        sudo systemctl daemon-reload
+        sudo systemctl restart nix-daemon
+
+    - name: Show nixpkgs version
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version'
+
+    - name: Check evaluation
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: |
+        nix-env -f . -qa \* --meta --xml \
+          --allowed-uris https://static.rust-lang.org \
+          --option restrict-eval true \
+          --option allow-import-from-derivation true \
+          --drv-path --show-trace \
+          -I nixpkgs=$(nix-instantiate --find-file nixpkgs) \
+          -I $PWD
+      env:
+        NIXPKGS_ALLOW_UNFREE: 1
+
+    - name: Run package tests
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: |
+        if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "Running comprehensive test suite for all packages..."
+          echo "This will test: metadata, installation, and binary execution"
+          env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A all --no-out-link
+          echo "✓ All package tests passed successfully!"
+        else
+          echo "Running tests for changed packages only: ${{ steps.changes.outputs.changed_packages }}"
+          for pkg in ${{ steps.changes.outputs.changed_packages }}; do
+            echo "Testing $pkg..."
+
+            # Test metadata
+            echo "  → Testing metadata..."
+            env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A "metadata.$pkg" --no-out-link
+
+            # Test installation
+            echo "  → Testing installation..."
+            env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A "install.$pkg" --no-out-link
+
+            # Test binary (if applicable)
+            if nix-instantiate --eval --strict -E "(builtins.hasAttr \"$pkg\" (import ./test-packages.nix { }).binaries)" 2>/dev/null | grep -q true; then
+              echo "  → Testing binary..."
+              env TMPDIR=/nix/tmpdir nix-build test-packages.nix -A "binaries.$pkg" --no-out-link
+            else
+              echo "  → Skipping binary test (not applicable)"
+            fi
+
+            echo "✓ $pkg tests passed"
+          done
+          echo "✓ All changed package tests passed successfully!"
+        fi
+      env:
+        NIXPKGS_ALLOW_UNFREE: 1
+
+    - name: Test package instantiation
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: |
+        if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "Testing individual package instantiation for all packages..."
+          PACKAGES=$(nix-instantiate --eval --strict --json -E '(import ./test-packages.nix { }).packageNamesList' | jq -r '.[]' | tr '\n' ' ')
+        else
+          echo "Testing individual package instantiation for changed packages..."
+          PACKAGES="${{ steps.changes.outputs.changed_packages }}"
+        fi
+
+        for pkg in $PACKAGES; do
+          echo "Checking $pkg..."
+          nix-instantiate --eval -E "(import ./default.nix { pkgs = import <nixpkgs> { config.allowUnfree = true; }; }).$pkg.name"
+        done
+        echo "✓ All packages can be instantiated"
+      env:
+        NIXPKGS_ALLOW_UNFREE: 1
+
+    - name: Verify package outputs
+      if: steps.changes.outputs.changed_packages != '' || steps.changes.outputs.test_all == 'true'
+      run: |
+        if [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "Verifying package outputs for all packages..."
+          PACKAGES=$(nix-instantiate --eval --strict --json -E '(import ./test-packages.nix { }).packageNamesList' | jq -r '.[]' | tr '\n' ' ')
+        else
+          echo "Verifying package outputs for changed packages..."
+          PACKAGES="${{ steps.changes.outputs.changed_packages }}"
+        fi
+
+        for pkg in $PACKAGES; do
+          echo "Building $pkg..."
+          NIXPKGS_ALLOW_UNFREE=1 env TMPDIR=/nix/tmpdir nix-build -A "$pkg" --no-out-link --arg pkgs 'import <nixpkgs> { config.allowUnfree = true; }'
+        done
+        echo "✓ All packages build successfully"
+      env:
+        NIXPKGS_ALLOW_UNFREE: 1
+
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.changes.outputs.changed_packages }}" == "" ] && [ "${{ steps.changes.outputs.test_all }}" != "true" ]; then
+          echo "ℹ️ No package files were changed in this PR. Tests were skipped." >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ steps.changes.outputs.test_all }}" == "true" ]; then
+          echo "🔍 Core files modified - tested all packages" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "🎯 Tested changed packages only: ${{ steps.changes.outputs.changed_packages }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
