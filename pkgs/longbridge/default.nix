@@ -15,7 +15,8 @@
   libsoup_3,
   vulkan-loader,
   libGL,
-  xorg,
+  libx11,
+  libxcb,
   libxkbcommon,
   alsa-lib,
   sqlite,
@@ -24,11 +25,11 @@
 }:
 stdenv.mkDerivation rec {
   pname = "longbridge";
-  version = "0.10.2";
+  version = "0.14.0";
 
   src = fetchurl {
     url = "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v${version}-linux-x86_64.deb";
-    hash = "sha256-/ZvxfjghyRUKSt1HOT8Ld4r7xtLXPiSA8gmkyjz7E6I=";
+    hash = "sha256-BG3ndFNXIyIRDn6UhA5XM4Xd9BH18ENG211pyVjvBog=";
   };
 
   nativeBuildInputs = [
@@ -48,8 +49,8 @@ stdenv.mkDerivation rec {
     libsoup_3
     vulkan-loader
     libGL
-    xorg.libX11
-    xorg.libxcb
+    libx11
+    libxcb
     libxkbcommon
     alsa-lib
     sqlite
