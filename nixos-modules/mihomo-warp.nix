@@ -89,6 +89,14 @@ let
       ${pkgs.yq-go}/bin/yq -i '.listeners[0].listen = strenv(LISTEN_ADDR)' "$tmp_file"
     LISTEN_PORT=${lib.escapeShellArg (toString cfg.port)} \
       ${pkgs.yq-go}/bin/yq -i '.listeners[0].port = (strenv(LISTEN_PORT) | tonumber)' "$tmp_file"
+    LISTENER_TYPE=${lib.escapeShellArg cfg.listener} \
+      ${pkgs.yq-go}/bin/yq -i '.listeners[0].type = strenv(LISTENER_TYPE)' "$tmp_file"
+
+    if [ ${lib.escapeShellArg cfg.listener} = "http" ]; then
+      ${pkgs.yq-go}/bin/yq -i 'del(.listeners[0].udp)' "$tmp_file"
+    else
+      ${pkgs.yq-go}/bin/yq -i '.listeners[0].udp = true' "$tmp_file"
+    fi
 
     ${pkgs.yq-go}/bin/yq -i '.proxies[0].dns = []' "$tmp_file"
     for dns_server in ${lib.escapeShellArgs dnsServers}; do
@@ -96,9 +104,11 @@ let
         ${pkgs.yq-go}/bin/yq -i '.proxies[0].dns += [strenv(DNS_SERVER)]' "$tmp_file"
     done
 
-    if [ -n "''${SOCKS_USER:-}" ] && [ -n "''${SOCKS_PASS:-}" ]; then
-      SOCKS_USER_VALUE="$SOCKS_USER" SOCKS_PASS_VALUE="$SOCKS_PASS" \
-        ${pkgs.yq-go}/bin/yq -i '.listeners[0].users = [{"username": strenv(SOCKS_USER_VALUE), "password": strenv(SOCKS_PASS_VALUE)}]' "$tmp_file"
+    listener_user="''${LISTENER_USER:-''${SOCKS_USER:-}}"
+    listener_pass="''${LISTENER_PASS:-''${SOCKS_PASS:-}}"
+    if [ -n "$listener_user" ] && [ -n "$listener_pass" ]; then
+      LISTENER_USER_VALUE="$listener_user" LISTENER_PASS_VALUE="$listener_pass" \
+        ${pkgs.yq-go}/bin/yq -i '.listeners[0].users = [{"username": strenv(LISTENER_USER_VALUE), "password": strenv(LISTENER_PASS_VALUE)}]' "$tmp_file"
     else
       ${pkgs.yq-go}/bin/yq -i 'del(.listeners[0].users)' "$tmp_file"
     fi
@@ -147,16 +157,26 @@ in
       description = "WARP registration mode.";
     };
 
+    listener = lib.mkOption {
+      type = lib.types.enum [
+        "socks"
+        "http"
+        "mixed"
+      ];
+      default = "socks";
+      description = "Listener type for mihomo.";
+    };
+
     listen = lib.mkOption {
       type = lib.types.str;
       default = "127.0.0.1";
-      description = "SOCKS5 listener bind address.";
+      description = "Listener bind address.";
     };
 
     port = lib.mkOption {
       type = lib.types.port;
       default = 1080;
-      description = "SOCKS5 listener port.";
+      description = "Listener port.";
     };
 
     dns = lib.mkOption {
@@ -178,8 +198,9 @@ in
         Path to an environment file loaded by the systemd service.
         Supports the following variables:
         - WARP_JWT: ZeroTrust JWT token
-        - SOCKS_USER: SOCKS5 authentication username
-        - SOCKS_PASS: SOCKS5 authentication password
+        - LISTENER_USER: listener authentication username
+        - LISTENER_PASS: listener authentication password
+        - SOCKS_USER/SOCKS_PASS: backward-compatible aliases
       '';
     };
   };

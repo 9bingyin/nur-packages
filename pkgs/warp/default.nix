@@ -8,16 +8,16 @@
 }:
 buildNpmPackage rec {
   pname = "mihomo-warp";
-  version = "0-unstable-2026-03-09";
+  version = "0-unstable-2026-04-08";
 
   src = fetchFromGitHub {
     owner = "9bingyin";
     repo = "warp";
-    rev = "81b67af0756e16c77e21eb131ac23971c2fb5d2a";
-    hash = "sha256-IT+eDB0cBQivd871ePOQVu+tXKNkF+XKK/TSn3vHRis=";
+    rev = "f6fa78296e02f6a99118bc20b89cd570dc8b4cb8";
+    hash = "sha256-S7kG71ooB2/Acc+MM4QVe0WiVGOfGJrC5H7c+zecztg=";
   };
 
-  npmDepsHash = "sha256-yEWGktCdQwz7kUq3lR3Qb2LB+QJX1+psnCJeOCT+BCM=";
+  npmDepsHash = "sha256-Yw1k0U1jKuAAvwV/Nf3uVhxeMXKn8knmTtLCjhAjNrw=";
 
   dontNpmBuild = true;
 
