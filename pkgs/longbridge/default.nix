@@ -15,7 +15,7 @@
   libsoup_3,
   vulkan-loader,
   libGL,
-  libx11,
+  libX11,
   libxcb,
   libxkbcommon,
   alsa-lib,
@@ -49,7 +49,7 @@ stdenv.mkDerivation rec {
     libsoup_3
     vulkan-loader
     libGL
-    libx11
+    libX11
     libxcb
     libxkbcommon
     alsa-lib
