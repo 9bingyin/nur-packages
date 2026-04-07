@@ -1,5 +1,3 @@
 {
-  # Add your NixOS modules here
-  #
-  # my-module = ./my-module;
+  mihomo-warp = ./mihomo-warp.nix;
 }
