@@ -112,9 +112,13 @@ let
   ++ lib.optionals cfg.http2 [ "--http2" ]
   ++ lib.optionals cfg.insecure [ "--insecure" ]
   ++ lib.optionals (builtins.elem cfg.mode proxyModes && cfg.localDNS) [ "--local-dns" ]
-  ++ lib.optionals (builtins.elem cfg.mode proxyModes && cfg.localDNS && cfg.systemDNS) [ "--system-dns" ]
+  ++ lib.optionals (builtins.elem cfg.mode proxyModes && cfg.localDNS && cfg.systemDNS) [
+    "--system-dns"
+  ]
   ++ lib.optionals (cfg.alwaysReconnect == true) [ "--always-reconnect" ]
-  ++ lib.optionals (cfg.mode == "portfw" && cfg.alwaysReconnect == false) [ "--dont-always-reconnect" ]
+  ++ lib.optionals (cfg.mode == "portfw" && cfg.alwaysReconnect == false) [
+    "--dont-always-reconnect"
+  ]
   ++ lib.optionals (cfg.onConnect != null) [
     "--on-connect"
     cfg.onConnect
@@ -148,7 +152,9 @@ let
     should_register=0
     if [ ! -s "$config_file" ]; then
       should_register=1
-    elif [ "$current_hash" != "$desired_hash" ] && [ ${lib.escapeShellArg (if cfg.acceptTerms then "1" else "0")} = "1" ]; then
+    elif [ "$current_hash" != "$desired_hash" ] && [ ${
+      lib.escapeShellArg (if cfg.acceptTerms then "1" else "0")
+    } = "1" ]; then
       should_register=1
     fi
 
@@ -180,7 +186,9 @@ let
     args=(${lib.escapeShellArgs serviceArgs})
 
     credentials_file="''${CREDENTIALS_DIRECTORY:-}/proxy-credentials"
-    if [ ${lib.escapeShellArg (if builtins.elem cfg.mode proxyModes then "1" else "0")} = "1" ] && [ -s "$credentials_file" ]; then
+    if [ ${
+      lib.escapeShellArg (if builtins.elem cfg.mode proxyModes then "1" else "0")
+    } = "1" ] && [ -s "$credentials_file" ]; then
       credentials="$(${pkgs.coreutils}/bin/cat "$credentials_file")"
       listener_user="''${credentials%%:*}"
       listener_pass="''${credentials#*:}"

@@ -19,6 +19,7 @@
       packages = forAllSystems (
         system: nixpkgs.lib.filterAttrs (_: v: nixpkgs.lib.isDerivation v) self.legacyPackages.${system}
       );
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-tree);
       nixosModules = import ./nixos-modules;
       # homeModules = import ./home-modules;
       # darwinModules = import ./darwin-modules;
