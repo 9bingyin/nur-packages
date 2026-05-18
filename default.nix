@@ -20,6 +20,7 @@
   overlays = import ./overlays; # nixpkgs overlays
 
   longbridge = pkgs.callPackage ./pkgs/longbridge { };
+  longbridge-terminal = pkgs.callPackage ./pkgs/longbridge-terminal { };
   warp = pkgs.callPackage ./pkgs/warp { };
   # some-qt5-package = pkgs.libsForQt5.callPackage ./pkgs/some-qt5-package { };
   # ...
