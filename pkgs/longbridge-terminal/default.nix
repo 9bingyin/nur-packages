@@ -16,6 +16,10 @@ rustPlatform.buildRustPackage rec {
 
   cargoHash = "sha256-/zwMSi3QzL8fLzkUciF1pjxM5VeAAnbFbijbmuGJk/I=";
 
+  preCheck = ''
+    export HOME=$(mktemp -d)
+  '';
+
   meta = with lib; {
     description = "AI-native CLI for the Longbridge trading platform";
     homepage = "https://github.com/longbridge/longbridge-terminal";
