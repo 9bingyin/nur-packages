@@ -8,7 +8,7 @@
 }:
 buildNpmPackage rec {
   pname = "mihomo-warp";
-  version = "0-unstable-2026-04-08";
+  version = "0-unstable-2026-04-07";
 
   src = fetchFromGitHub {
     owner = "9bingyin";
