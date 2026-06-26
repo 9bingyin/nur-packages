@@ -1,0 +1,74 @@
+name: "Update packages"
+
+on:
+  schedule:
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - longbridge
+          - longbridge-terminal
+          - warp
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/nixpkgs-unstable.tar.gz
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update package definition
+        id: update
+        env:
+          NIXPKGS_ALLOW_UNFREE: "1"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/update-packages.sh "${{ matrix.package }}"
+
+      - name: Format nix files
+        run: nix fmt
+
+      - name: Check evaluation
+        run: |
+          nix flake show --impure
+          nix-env -f . -qa '*' --meta --xml \
+            --allowed-uris https://static.rust-lang.org \
+            --option restrict-eval true \
+            --option allow-import-from-derivation true \
+            --drv-path --show-trace \
+            -I "nixpkgs=$(nix-instantiate --find-file nixpkgs)" \
+            -I "$PWD" >/dev/null
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.NUR_UPDATE_TOKEN || github.token }}
+          branch: automation/update-${{ matrix.package }}
+          delete-branch: true
+          commit-message: ${{ steps.update.outputs.commit_message }}
+          title: ${{ steps.update.outputs.commit_message }}
+          body: |
+            由 scripts/update-packages.sh 自动生成。
+
+            ${{ matrix.package }}: ${{ steps.update.outputs.old_version }} -> ${{ steps.update.outputs.new_version }}
+          labels: |
+            automated
+            dependencies
