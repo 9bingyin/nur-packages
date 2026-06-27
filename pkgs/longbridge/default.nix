@@ -3,6 +3,7 @@
   stdenv,
   fetchurl,
   dpkg,
+  undmg,
   autoPatchelfHook,
   makeWrapper,
   glib,
@@ -23,22 +24,44 @@
   openssl,
   xz,
 }:
-stdenv.mkDerivation rec {
-  pname = "longbridge";
+let
   version = "0.17.2";
+  srcs = {
+    x86_64-linux = {
+      suffix = "linux-x86_64.deb";
+      hash = "sha256-IqXqaoLCPudLexbFw2+usryId4/4kg0LdKrhK85bSZU=";
+    };
+    aarch64-darwin = {
+      suffix = "macos-aarch64.dmg";
+      hash = "sha256-rJDmqxIqQc5XaVdjFvvhNUVIUoPoKFNxVUdgLQkHEv8=";
+    };
+    x86_64-darwin = {
+      suffix = "macos-x86_64.dmg";
+      hash = "sha256-sZct8FBObs2ag0fRynYisuKXRIYPpuzfpE592qrKr/4=";
+    };
+  };
+  srcInfo =
+    srcs.${stdenv.hostPlatform.system}
+      or (throw "longbridge: unsupported system ${stdenv.hostPlatform.system}");
+in
+stdenv.mkDerivation {
+  pname = "longbridge";
+  inherit version;
 
   src = fetchurl {
-    url = "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v${version}-linux-x86_64.deb";
-    hash = "sha256-IqXqaoLCPudLexbFw2+usryId4/4kg0LdKrhK85bSZU=";
+    url = "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v${version}-${srcInfo.suffix}";
+    inherit (srcInfo) hash;
   };
 
-  nativeBuildInputs = [
-    dpkg
-    autoPatchelfHook
-    makeWrapper
-  ];
+  nativeBuildInputs =
+    lib.optionals stdenv.hostPlatform.isLinux [
+      dpkg
+      autoPatchelfHook
+      makeWrapper
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [ undmg ];
 
-  buildInputs = [
+  buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
     glib
     gtk3
     cairo
@@ -59,31 +82,56 @@ stdenv.mkDerivation rec {
     stdenv.cc.cc.lib
   ];
 
-  unpackPhase = "dpkg-deb -x $src .";
+  unpackPhase =
+    if stdenv.hostPlatform.isLinux then
+      "dpkg-deb -x $src ."
+    else
+      ''
+        runHook preUnpack
+        undmg $src
+        runHook postUnpack
+      '';
 
-  installPhase = ''
-    runHook preInstall
+  sourceRoot = lib.optional stdenv.hostPlatform.isDarwin ".";
 
-    install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-unwrapped
+  dontFixup = stdenv.hostPlatform.isDarwin;
 
-    makeWrapper $out/bin/.longbridge-unwrapped $out/bin/longbridge \
-      --prefix LD_LIBRARY_PATH : "${
-        lib.makeLibraryPath [
-          vulkan-loader
-          libGL
-        ]
-      }"
+  installPhase =
+    if stdenv.hostPlatform.isDarwin then
+      ''
+        runHook preInstall
 
-    install -Dm644 usr/share/icons/hicolor/512x512/apps/longbridge.png \
-      $out/share/icons/hicolor/512x512/apps/longbridge.png
-    install -Dm644 usr/share/icons/hicolor/1024x1024/apps/longbridge.png \
-      $out/share/icons/hicolor/1024x1024/apps/longbridge.png
+        mkdir -p $out/Applications $out/bin
+        cp -R Longbridge.app $out/Applications/
 
-    install -Dm644 usr/share/applications/longbridge.desktop \
-      $out/share/applications/longbridge.desktop
+        ln -s $out/Applications/Longbridge.app/Contents/MacOS/longbridge $out/bin/longbridge
 
-    runHook postInstall
-  '';
+        runHook postInstall
+      ''
+    else
+      ''
+        runHook preInstall
+
+        install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-unwrapped
+
+        makeWrapper $out/bin/.longbridge-unwrapped $out/bin/longbridge \
+          --prefix LD_LIBRARY_PATH : "${
+            lib.makeLibraryPath [
+              vulkan-loader
+              libGL
+            ]
+          }"
+
+        install -Dm644 usr/share/icons/hicolor/512x512/apps/longbridge.png \
+          $out/share/icons/hicolor/512x512/apps/longbridge.png
+        install -Dm644 usr/share/icons/hicolor/1024x1024/apps/longbridge.png \
+          $out/share/icons/hicolor/1024x1024/apps/longbridge.png
+
+        install -Dm644 usr/share/applications/longbridge.desktop \
+          $out/share/applications/longbridge.desktop
+
+        runHook postInstall
+      '';
 
   meta = with lib; {
     description = "Professional trading platform for stocks and financial instruments";
@@ -95,7 +143,11 @@ stdenv.mkDerivation rec {
         github = "9bingyin";
       }
     ];
-    platforms = [ "x86_64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-darwin"
+      "x86_64-darwin"
+    ];
     sourceProvenance = with sourceTypes; [ binaryNativeCode ];
     mainProgram = "longbridge";
   };
