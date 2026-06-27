@@ -57,6 +57,15 @@ jobs:
             -I "nixpkgs=$(nix-instantiate --find-file nixpkgs)" \
             -I "$PWD" >/dev/null
 
+      - name: Check Longbridge platforms
+        if: matrix.package == 'longbridge'
+        env:
+          NIXPKGS_ALLOW_UNFREE: "1"
+        run: |
+          nix eval --raw --impure --system x86_64-linux .#packages.x86_64-linux.longbridge.version
+          nix eval --raw --impure --system aarch64-darwin .#packages.aarch64-darwin.longbridge.version
+          nix eval --raw --impure --system x86_64-darwin .#packages.x86_64-darwin.longbridge.version
+
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:

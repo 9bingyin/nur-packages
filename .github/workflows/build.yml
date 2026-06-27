@@ -74,3 +74,26 @@ jobs:
       # Don't replace <YOUR_REPO_NAME> here!
       if: ${{ matrix.nurRepo != '<YOUR_REPO_NAME>' }}
       run: curl -XPOST "https://nur-update.nix-community.org/update?repo=${{ matrix.nurRepo }}"
+
+  longbridge-darwin:
+    name: Build Longbridge on macOS
+    if: github.event_name != 'schedule'
+    runs-on: macos-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Install nix
+      uses: cachix/install-nix-action@v31
+      with:
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - name: Build Longbridge
+      env:
+        NIXPKGS_ALLOW_UNFREE: "1"
+      run: nix build --impure .#longbridge
+    - name: Check app bundle
+      run: |
+        test -d result/Applications/Longbridge.app
+        test -x result/bin/longbridge
+        codesign --verify --deep --strict --verbose=2 result/Applications/Longbridge.app

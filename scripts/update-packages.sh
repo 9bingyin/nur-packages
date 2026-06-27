@@ -45,21 +45,74 @@ versions = sorted(
     reverse=True,
 )
 
-for version in versions:
-    deb_url = (
-        "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/"
-        f"longbridge-v{version}-linux-x86_64.deb"
-    )
-    try:
-        request = urllib.request.Request(deb_url, headers=headers, method="HEAD")
-        with urllib.request.urlopen(request, timeout=30) as response:
-            if response.status == 200:
-                print(version)
-                sys.exit(0)
-    except Exception:
-        continue
+suffixes = [
+    "linux-x86_64.deb",
+    "macos-aarch64.dmg",
+    "macos-x86_64.dmg",
+]
 
-raise SystemExit("no valid longbridge linux deb release found")
+for version in versions:
+    for suffix in suffixes:
+        url = (
+            "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/"
+            f"longbridge-v{version}-{suffix}"
+        )
+        try:
+            request = urllib.request.Request(url, headers=headers, method="HEAD")
+            with urllib.request.urlopen(request, timeout=30) as response:
+                if response.status != 200:
+                    break
+        except Exception:
+            break
+    else:
+        print(version)
+        sys.exit(0)
+
+raise SystemExit("no valid longbridge release with linux and macOS artifacts found")
+PY
+}
+
+prefetch_sri_hash() {
+  local url="$1"
+
+  nix store prefetch-file --json "$url" \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["hash"])'
+}
+
+update_longbridge_hashes() {
+  local version="$1"
+  local linux_hash="$2"
+  local macos_aarch64_hash="$3"
+  local macos_x86_64_hash="$4"
+
+  python3 - \
+    "$version" \
+    "$linux_hash" \
+    "$macos_aarch64_hash" \
+    "$macos_x86_64_hash" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+version, linux_hash, macos_aarch64_hash, macos_x86_64_hash = sys.argv[1:]
+path = Path("pkgs/longbridge/default.nix")
+text = path.read_text()
+
+text, count = re.subn(r'(?m)^  version = "[^"]+";', f'  version = "{version}";', text, count=1)
+if count != 1:
+    raise SystemExit("failed to update longbridge version")
+
+for suffix, hash_value in {
+    "linux-x86_64.deb": linux_hash,
+    "macos-aarch64.dmg": macos_aarch64_hash,
+    "macos-x86_64.dmg": macos_x86_64_hash,
+}.items():
+    pattern = re.compile(rf'(suffix = "{re.escape(suffix)}";\n\s+hash = ")[^"]+(";)')
+    text, count = pattern.subn(rf'\g<1>{hash_value}\2', text, count=1)
+    if count != 1:
+        raise SystemExit(f"failed to update hash for {suffix}")
+
+path.write_text(text)
 PY
 }
 
@@ -69,9 +122,24 @@ update_longbridge_terminal() {
 
 update_longbridge() {
   local version
+  local base_url
+  local linux_hash
+  local macos_aarch64_hash
+  local macos_x86_64_hash
+
   version="$(latest_longbridge_version)"
+  base_url="https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v${version}"
+
   echo "latest longbridge version: $version"
-  nix_update --version="$version" longbridge
+  linux_hash="$(prefetch_sri_hash "${base_url}-linux-x86_64.deb")"
+  macos_aarch64_hash="$(prefetch_sri_hash "${base_url}-macos-aarch64.dmg")"
+  macos_x86_64_hash="$(prefetch_sri_hash "${base_url}-macos-x86_64.dmg")"
+
+  update_longbridge_hashes \
+    "$version" \
+    "$linux_hash" \
+    "$macos_aarch64_hash" \
+    "$macos_x86_64_hash"
 }
 
 update_warp() {
