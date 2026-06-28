@@ -34,7 +34,11 @@
     let
       inherit (inputs.nixpkgs) lib;
 
-      systems = import inputs.systems;
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
 
       mkPkgsFor =
         system:
@@ -47,6 +51,7 @@
 
       blueprintOutputs = inputs.blueprint {
         inherit inputs;
+        inherit systems;
         nixpkgs.config.allowUnfree = true;
       };
     in

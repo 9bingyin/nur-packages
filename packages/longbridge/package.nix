@@ -35,10 +35,6 @@ let
       suffix = "macos-aarch64.dmg";
       hash = "sha256-rJDmqxIqQc5XaVdjFvvhNUVIUoPoKFNxVUdgLQkHEv8=";
     };
-    x86_64-darwin = {
-      suffix = "macos-x86_64.dmg";
-      hash = "sha256-sZct8FBObs2ag0fRynYisuKXRIYPpuzfpE592qrKr/4=";
-    };
   };
   srcInfo =
     srcs.${stdenv.hostPlatform.system}
@@ -146,7 +142,6 @@ stdenv.mkDerivation {
     platforms = [
       "x86_64-linux"
       "aarch64-darwin"
-      "x86_64-darwin"
     ];
     sourceProvenance = with sourceTypes; [ binaryNativeCode ];
     mainProgram = "longbridge";

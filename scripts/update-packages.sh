@@ -48,7 +48,6 @@ versions = sorted(
 suffixes = [
     "linux-x86_64.deb",
     "macos-aarch64.dmg",
-    "macos-x86_64.dmg",
 ]
 
 for version in versions:
@@ -83,18 +82,16 @@ update_longbridge_hashes() {
   local version="$1"
   local linux_hash="$2"
   local macos_aarch64_hash="$3"
-  local macos_x86_64_hash="$4"
 
   python3 - \
     "$version" \
     "$linux_hash" \
-    "$macos_aarch64_hash" \
-    "$macos_x86_64_hash" <<'PY'
+    "$macos_aarch64_hash" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-version, linux_hash, macos_aarch64_hash, macos_x86_64_hash = sys.argv[1:]
+version, linux_hash, macos_aarch64_hash = sys.argv[1:]
 path = Path("packages/longbridge/package.nix")
 text = path.read_text()
 
@@ -105,7 +102,6 @@ if count != 1:
 for suffix, hash_value in {
     "linux-x86_64.deb": linux_hash,
     "macos-aarch64.dmg": macos_aarch64_hash,
-    "macos-x86_64.dmg": macos_x86_64_hash,
 }.items():
     pattern = re.compile(rf'(suffix = "{re.escape(suffix)}";\n\s+hash = ")[^"]+(";)')
     text, count = pattern.subn(rf'\g<1>{hash_value}\2', text, count=1)
@@ -125,7 +121,6 @@ update_longbridge() {
   local base_url
   local linux_hash
   local macos_aarch64_hash
-  local macos_x86_64_hash
 
   version="$(latest_longbridge_version)"
   base_url="https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v${version}"
@@ -133,13 +128,11 @@ update_longbridge() {
   echo "latest longbridge version: $version"
   linux_hash="$(prefetch_sri_hash "${base_url}-linux-x86_64.deb")"
   macos_aarch64_hash="$(prefetch_sri_hash "${base_url}-macos-aarch64.dmg")"
-  macos_x86_64_hash="$(prefetch_sri_hash "${base_url}-macos-x86_64.dmg")"
 
   update_longbridge_hashes \
     "$version" \
     "$linux_hash" \
-    "$macos_aarch64_hash" \
-    "$macos_x86_64_hash"
+    "$macos_aarch64_hash"
 }
 
 update_warp() {
