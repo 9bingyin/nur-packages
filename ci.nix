@@ -56,6 +56,18 @@ let
 
   outputsOf = p: map (o: p.${o}) p.outputs;
 
+  outputJobs =
+    packages:
+    listToAttrs (
+      concatMap (
+        package:
+        map (output: {
+          name = "${package.name}-${output}";
+          value = package.${output};
+        }) package.outputs
+      ) packages
+    );
+
   nurAttrs = import ./default.nix { inherit pkgs; };
 
   nurPkgs = flattenPkgs (
@@ -70,4 +82,7 @@ rec {
 
   buildOutputs = concatMap outputsOf buildPkgs;
   cacheOutputs = concatMap outputsOf cachePkgs;
+
+  buildJobs = outputJobs buildPkgs;
+  cacheJobs = outputJobs cachePkgs;
 }

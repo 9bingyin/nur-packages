@@ -29,14 +29,16 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            extra-substituters = https://9bingyin.cachix.org
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=
             access-tokens = github.com=${{ github.token }}
       - name: Run flake checks
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
         run: nix flake check --impure --no-build --show-trace
 
-  nur-build:
-    name: NUR eval/build (${{ matrix.nixpkgs }})
+  nur-eval:
+    name: NUR evaluation (${{ matrix.nixpkgs }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -54,15 +56,11 @@ jobs:
           nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/${{ matrix.nixpkgs }}.tar.gz
           extra_nix_config: |
             experimental-features = nix-command flakes
+            extra-substituters = https://9bingyin.cachix.org
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=
             access-tokens = github.com=${{ github.token }}
       - name: Show nixpkgs version
         run: nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version'
-      - name: Setup Cachix
-        uses: cachix/cachix-action@v17
-        with:
-          name: 9bingyin
-          signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: Check NUR evaluation
         run: |
           nix-env -f . -qa '*' --meta --xml \
@@ -72,8 +70,6 @@ jobs:
             --drv-path --show-trace \
             -I "nixpkgs=$(nix-instantiate --find-file nixpkgs)" \
             -I "$PWD" >/dev/null
-      - name: Build cacheable NUR outputs
-        run: nix shell -f '<nixpkgs>' nix-build-uncached -c nix-build-uncached ci.nix -A cacheOutputs
       - name: Trigger NUR update
         if: github.event_name == 'push' && matrix.nixpkgs == 'nixpkgs-unstable'
         run: curl -XPOST "https://nur-update.nix-community.org/update?repo=9bingyin"
@@ -98,23 +94,18 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            extra-substituters = https://9bingyin.cachix.org
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=
             access-tokens = github.com=${{ github.token }}
-      - name: Build native packages
+      - name: Build native packages missing from cache
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
           SYSTEM: ${{ matrix.system }}
         run: |
-          set -euo pipefail
-
-          packages="$(nix eval --json --impure ".#packages.${SYSTEM}" --apply '
-            pkgs:
-              builtins.filter
-                (name: name != "default" && name != "formatter")
-                (builtins.attrNames pkgs)
-          ' | jq -r '.[]')"
-
-          for package in $packages; do
-            echo "::group::Build $package on $SYSTEM"
-            nix build --impure --no-link ".#packages.${SYSTEM}.${package}"
-            echo "::endgroup::"
-          done
+          nix shell nixpkgs#nix-fast-build -c nix-fast-build \
+            --flake ".#packages.${SYSTEM}" \
+            --select 'packages: builtins.removeAttrs packages [ "default" "formatter" ]' \
+            --systems "$SYSTEM" \
+            --skip-cached \
+            --no-nom \
+            --no-link
