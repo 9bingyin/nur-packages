@@ -100,7 +100,7 @@ stdenv.mkDerivation {
         mkdir -p $out/Applications $out/bin
         cp -R Longbridge.app $out/Applications/
 
-        ln -s $out/Applications/Longbridge.app/Contents/MacOS/longbridge $out/bin/longbridge
+        ln -s $out/Applications/Longbridge.app/Contents/MacOS/longbridge $out/bin/longbridge-desktop
 
         runHook postInstall
       ''
@@ -108,9 +108,9 @@ stdenv.mkDerivation {
       ''
         runHook preInstall
 
-        install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-unwrapped
+        install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-desktop-unwrapped
 
-        makeWrapper $out/bin/.longbridge-unwrapped $out/bin/longbridge \
+        makeWrapper $out/bin/.longbridge-desktop-unwrapped $out/bin/longbridge-desktop \
           --prefix LD_LIBRARY_PATH : "${
             lib.makeLibraryPath [
               vulkan-loader
@@ -125,6 +125,9 @@ stdenv.mkDerivation {
 
         install -Dm644 usr/share/applications/longbridge.desktop \
           $out/share/applications/longbridge.desktop
+
+        substituteInPlace $out/share/applications/longbridge.desktop \
+          --replace-quiet "Exec=longbridge" "Exec=longbridge-desktop"
 
         runHook postInstall
       '';
@@ -144,6 +147,6 @@ stdenv.mkDerivation {
       "aarch64-darwin"
     ];
     sourceProvenance = with sourceTypes; [ binaryNativeCode ];
-    mainProgram = "longbridge";
+    mainProgram = "longbridge-desktop";
   };
 }
