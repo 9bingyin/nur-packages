@@ -142,7 +142,7 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../pkgs/warp { };
+      default = pkgs.callPackage ../../packages/warp { };
       description = "The mihomo-warp package to use.";
     };
 

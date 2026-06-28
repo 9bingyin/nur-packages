@@ -75,8 +75,8 @@ PY
 prefetch_sri_hash() {
   local url="$1"
 
-  nix store prefetch-file --json "$url" \
-    | python3 -c 'import json, sys; print(json.load(sys.stdin)["hash"])'
+  nix store prefetch-file --json "$url" |
+    python3 -c 'import json, sys; print(json.load(sys.stdin)["hash"])'
 }
 
 update_longbridge_hashes() {
@@ -95,7 +95,7 @@ import sys
 from pathlib import Path
 
 version, linux_hash, macos_aarch64_hash, macos_x86_64_hash = sys.argv[1:]
-path = Path("pkgs/longbridge/default.nix")
+path = Path("packages/longbridge/package.nix")
 text = path.read_text()
 
 text, count = re.subn(r'(?m)^  version = "[^"]+";', f'  version = "{version}";', text, count=1)
@@ -150,19 +150,19 @@ update_package() {
   local package="$1"
 
   case "$package" in
-    longbridge)
-      update_longbridge
-      ;;
-    longbridge-terminal)
-      update_longbridge_terminal
-      ;;
-    warp)
-      update_warp
-      ;;
-    *)
-      echo "unsupported package: $package" >&2
-      return 2
-      ;;
+  longbridge)
+    update_longbridge
+    ;;
+  longbridge-terminal)
+    update_longbridge_terminal
+    ;;
+  warp)
+    update_warp
+    ;;
+  *)
+    echo "unsupported package: $package" >&2
+    return 2
+    ;;
   esac
 }
 
@@ -170,7 +170,7 @@ set_output() {
   local key="$1"
   local value="$2"
 
-  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  if [[ -n ${GITHUB_OUTPUT:-} ]]; then
     printf '%s=%s\n' "$key" "$value" >>"$GITHUB_OUTPUT"
   fi
 }
@@ -185,7 +185,7 @@ update_with_outputs() {
   update_package "$package"
   new_version="$(current_version "$package")"
 
-  if [[ "$old_version" == "$new_version" ]]; then
+  if [[ $old_version == "$new_version" ]]; then
     commit_message="$package: update"
   else
     commit_message="$package: $old_version -> $new_version"
@@ -199,12 +199,12 @@ update_with_outputs() {
 }
 
 main() {
-  if [[ "$#" -eq 0 ]]; then
+  if [[ $# -eq 0 ]]; then
     echo "usage: $0 <longbridge|longbridge-terminal|warp|all>" >&2
     return 2
   fi
 
-  if [[ "$1" == "all" ]]; then
+  if [[ $1 == "all" ]]; then
     update_package longbridge-terminal
     update_package longbridge
     update_package warp

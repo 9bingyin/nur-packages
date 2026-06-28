@@ -20,7 +20,8 @@ let
     || n == "nixosModules"
     || n == "homeModules"
     || n == "darwinModules"
-    || n == "flakeModules";
+    || n == "flakeModules"
+    || n == "default";
   isDerivation = p: isAttrs p && p ? type && p.type == "derivation";
   isBuildable =
     p:

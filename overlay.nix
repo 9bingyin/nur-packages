@@ -1,24 +1,25 @@
-# You can use this file as a nixpkgs overlay. This is useful in the
-# case where you don't want to add the whole NUR namespace to your
-# configuration.
+# Flat NUR-compatible overlay. Packages are exposed at top level, e.g. pkgs.longbridge.
 self: super:
 let
-  isReserved =
-    n:
-    n == "lib"
-    || n == "overlays"
-    || n == "nixosModules"
-    || n == "homeModules"
-    || n == "darwinModules"
-    || n == "flakeModules";
-  nameValuePair = n: v: {
-    name = n;
-    value = v;
-  };
-  nurAttrs = import ./default.nix { pkgs = super; };
+  reservedNames = [
+    "lib"
+    "overlays"
+    "nixosModules"
+    "homeModules"
+    "darwinModules"
+    "flakeModules"
+    "default"
+  ];
+
+  packageSet = import ./default.nix { pkgs = super; };
+
+  packageNames = builtins.filter (name: !(builtins.elem name reservedNames)) (
+    builtins.attrNames packageSet
+  );
 in
 builtins.listToAttrs (
-  map (n: nameValuePair n nurAttrs.${n}) (
-    builtins.filter (n: !isReserved n) (builtins.attrNames nurAttrs)
-  )
+  map (name: {
+    inherit name;
+    value = packageSet.${name};
+  }) packageNames
 )
