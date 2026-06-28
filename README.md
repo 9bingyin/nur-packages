@@ -6,3 +6,7 @@
 [![Cachix Cache](https://img.shields.io/badge/cachix-9bingyin-blue.svg)](https://9bingyin.cachix.org)
 
 Cachix public key: `9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=`
+
+Attic cache: `https://cache.bingyin.org/9bingyin`
+
+Attic public key: `9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo=`

@@ -2,9 +2,13 @@
   description = "9bingyin's NUR package repository";
 
   nixConfig = {
-    extra-substituters = [ "https://9bingyin.cachix.org" ];
+    extra-substituters = [
+      "https://9bingyin.cachix.org"
+      "https://cache.bingyin.org/9bingyin"
+    ];
     extra-trusted-public-keys = [
       "9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo="
+      "9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo="
     ];
   };
 

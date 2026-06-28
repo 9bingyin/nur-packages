@@ -29,8 +29,8 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-            extra-substituters = https://9bingyin.cachix.org
-            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=
+            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org/9bingyin
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= 9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo=
             access-tokens = github.com=${{ github.token }}
       - name: Run flake checks
         env:
@@ -56,8 +56,8 @@ jobs:
           nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/${{ matrix.nixpkgs }}.tar.gz
           extra_nix_config: |
             experimental-features = nix-command flakes
-            extra-substituters = https://9bingyin.cachix.org
-            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=
+            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org/9bingyin
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= 9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo=
             access-tokens = github.com=${{ github.token }}
       - name: Show nixpkgs version
         run: nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version'
@@ -78,6 +78,9 @@ jobs:
     name: Native package build (${{ matrix.system }})
     if: github.event_name != 'schedule'
     runs-on: ${{ matrix.runner }}
+    env:
+      ATTIC_ENDPOINT: ${{ secrets.ATTIC_ENDPOINT }}
+      ATTIC_CACHE: ${{ secrets.ATTIC_CACHE }}
     strategy:
       fail-fast: false
       matrix:
@@ -96,21 +99,28 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-            extra-substituters = https://9bingyin.cachix.org
-            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo=
+            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org/9bingyin
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= 9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo=
             access-tokens = github.com=${{ github.token }}
+      - name: Setup Attic cache
+        if: env.ATTIC_ENDPOINT != '' && env.ATTIC_CACHE != ''
+        uses: ryanccn/attic-action@v0
+        with:
+          endpoint: ${{ env.ATTIC_ENDPOINT }}
+          cache: ${{ env.ATTIC_CACHE }}
+          token: ${{ secrets.ATTIC_TOKEN }}
       - name: Build native packages missing from cache
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
           SYSTEM: ${{ matrix.system }}
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
         run: |
           nix shell nixpkgs#nix-fast-build -c nix-fast-build \
             --flake ".#packages.${SYSTEM}" \
             --select 'packages: builtins.removeAttrs packages [ "default" "formatter" ]' \
             --systems "$SYSTEM" \
             --skip-cached \
+            --eval-workers 1 \
             --cachix-cache 9bingyin \
             --no-nom \
             --no-link
