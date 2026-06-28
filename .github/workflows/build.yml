@@ -103,11 +103,14 @@ jobs:
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
           SYSTEM: ${{ matrix.system }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
         run: |
           nix shell nixpkgs#nix-fast-build -c nix-fast-build \
             --flake ".#packages.${SYSTEM}" \
             --select 'packages: builtins.removeAttrs packages [ "default" "formatter" ]' \
             --systems "$SYSTEM" \
             --skip-cached \
+            --cachix-cache 9bingyin \
             --no-nom \
             --no-link
