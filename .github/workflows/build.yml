@@ -79,8 +79,9 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ${{ matrix.runner }}
     env:
-      ATTIC_ENDPOINT: ${{ secrets.ATTIC_ENDPOINT }}
-      ATTIC_CACHE: ${{ secrets.ATTIC_CACHE }}
+      ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
+      ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -103,12 +104,12 @@ jobs:
             extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= 9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo=
             access-tokens = github.com=${{ github.token }}
       - name: Setup Attic cache
-        if: env.ATTIC_ENDPOINT != '' && env.ATTIC_CACHE != ''
+        if: env.ATTIC_ENDPOINT != '' && env.ATTIC_CACHE != '' && env.ATTIC_TOKEN != ''
         uses: ryanccn/attic-action@v0
         with:
           endpoint: ${{ env.ATTIC_ENDPOINT }}
           cache: ${{ env.ATTIC_CACHE }}
-          token: ${{ secrets.ATTIC_TOKEN }}
+          token: ${{ env.ATTIC_TOKEN }}
       - name: Build native packages missing from cache
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
