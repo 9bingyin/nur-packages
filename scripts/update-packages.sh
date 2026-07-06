@@ -153,8 +153,7 @@ update_package() {
     update_warp
     ;;
   *)
-    echo "unsupported package: $package" >&2
-    return 2
+    nix_update "$package"
     ;;
   esac
 }
