@@ -103,7 +103,7 @@ in
   config = lib.mkIf cfg.enable {
     environment.systemPackages = lib.mkIf cfg.addToSystemPackages [ cfg.package ];
 
-    system.activationScripts.synthesizer-v-studio-2-pro.text = ''
+    system.activationScripts.extraActivation.text = lib.mkAfter ''
       echo "setting up Synthesizer V Studio 2 Pro..." >&2
 
       package=${lib.escapeShellArg cfg.package}
