@@ -76,5 +76,9 @@
         mihomo-warp = import ./modules/nixos/mihomo-warp.nix;
         usque = import ./modules/nixos/usque.nix;
       };
+
+      darwinModules = {
+        synthesizer-v-studio-2-pro = import ./modules/darwin/synthesizer-v-studio-2-pro.nix;
+      };
     };
 }

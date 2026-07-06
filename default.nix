@@ -25,6 +25,9 @@ in
     mihomo-warp = ./modules/nixos/mihomo-warp.nix;
     usque = ./modules/nixos/usque.nix;
   };
+  darwinModules = {
+    synthesizer-v-studio-2-pro = ./modules/darwin/synthesizer-v-studio-2-pro.nix;
+  };
   overlays = import ./overlays;
 }
 // packages
