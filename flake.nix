@@ -4,11 +4,11 @@
   nixConfig = {
     extra-substituters = [
       "https://9bingyin.cachix.org"
-      "https://cache.bingyin.org/9bingyin"
+      "https://cache.bingyin.org"
     ];
     extra-trusted-public-keys = [
       "9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo="
-      "9bingyin:90z35xmUYWimWPICqCJt7rzJ6wo+fagx7t0v9MCCeQo="
+      "cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI="
     ];
   };
 
