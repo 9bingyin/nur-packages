@@ -1,0 +1,49 @@
+name: Check package catalogue
+
+on:
+  pull_request:
+    paths:
+      - packages/**
+      - README.md
+      - .github/workflows/check-readme.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Verify package catalogue
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          missing=()
+          for package_file in packages/*/package.nix; do
+            package_name="${package_file#packages/}"
+            package_name="${package_name%/package.nix}"
+
+            case "$package_name" in
+              default | formatter) continue ;;
+            esac
+
+            if ! grep -Fq "](packages/${package_name}/package.nix)" README.md; then
+              missing+=("$package_name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error::README package catalogue is missing: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+          while IFS= read -r package_name; do
+            if [[ ! -f "packages/${package_name}/package.nix" ]]; then
+              printf '::error::README references a missing package: %s\n' "$package_name"
+              exit 1
+            fi
+          done < <(grep -oE ']\(packages/[^/]+/package\.nix\)' README.md | cut -d/ -f2)
