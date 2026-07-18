@@ -20,7 +20,20 @@ def main() -> None:
         if "oven-sh/setup-bun" in content or "bun install" in content:
             raise RuntimeError(f"{workflow} must not install Bun")
 
+    update_caller = Path(".github/workflows/update.yml").read_text()
     update_workflow = Path(".github/workflows/update-flake.yml").read_text()
+    for forbidden in ("NUR_UPDATE_TOKEN", "secrets: inherit"):
+        if forbidden in update_caller or forbidden in update_workflow:
+            raise RuntimeError(f"Update workflows must not contain {forbidden}")
+    for required in (
+        "AUTOMATION_APP_PRIVATE_KEY",
+        "actions/create-github-app-token@v3",
+        "vars.AUTOMATION_APP_CLIENT_ID",
+        "steps.app-token.outputs.token",
+    ):
+        if required not in update_caller + update_workflow:
+            raise RuntimeError(f"Update workflows must use {required}")
+
     for command in (
         "./.github/ci/prepare_update_branch.py",
         "./.github/ci/update.py",

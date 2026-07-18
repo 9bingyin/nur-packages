@@ -29,7 +29,8 @@ jobs:
       inputs: ${{ github.event.inputs.inputs || '' }}
       pr-labels: "dependencies,automated"
       auto-merge: true
-    secrets: inherit
+    secrets:
+      AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
     permissions:
       contents: write
       pull-requests: write
