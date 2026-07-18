@@ -1,0 +1,53 @@
+name: Build Packages
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover package builds
+    runs-on: ubuntu-latest
+    outputs:
+      has-packages: ${{ steps.matrix.outputs.has-packages }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
+            access-tokens = github.com=${{ github.token }}
+      - name: Build package matrix
+        id: matrix
+        run: ./.github/ci/build_matrix.py
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.has-packages == 'true'
+    name: ${{ matrix.package }} (${{ matrix.system }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org
+            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
+            access-tokens = github.com=${{ github.token }}
+      - name: Build package
+        env:
+          NIXPKGS_ALLOW_UNFREE: "1"
+        run: >-
+          nix build --no-link
+          ".#packages.${{ matrix.system }}.${{ matrix.package }}"

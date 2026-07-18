@@ -18,11 +18,6 @@ on:
         required: false
         type: string
         default: "dependencies,automated"
-      auto-merge:
-        description: "Whether to merge an update pull request immediately."
-        required: false
-        type: boolean
-        default: false
     secrets:
       AUTOMATION_APP_PRIVATE_KEY:
         required: true
@@ -97,7 +92,6 @@ jobs:
       - name: Create pull request
         if: steps.update.outputs.updated == 'true'
         env:
-          AUTO_MERGE: ${{ inputs.auto-merge }}
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_LABELS: ${{ inputs.pr-labels }}
@@ -118,7 +112,6 @@ jobs:
           {
             echo "## Update Summary"
             echo
-            echo "- Auto-merge requested: \`${{ inputs.auto-merge }}\`"
             echo "- Discovery: \`${{ needs.discover.result }}\`"
             echo "- Updates: \`${{ needs.update.result }}\`"
           } >>"$GITHUB_STEP_SUMMARY"

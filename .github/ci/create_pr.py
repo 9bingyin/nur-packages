@@ -99,11 +99,9 @@ def main() -> None:
     if not os.environ.get("GH_TOKEN"):
         raise RuntimeError("GH_TOKEN must be set")
     args = parse_args()
-    number = create_or_update(
+    create_or_update(
         build_pull_request(args.type, args.name, args.current_version, args.new_version)
     )
-    if os.environ.get("AUTO_MERGE", "false") == "true":
-        run(["gh", "pr", "merge", number, "--squash", "--delete-branch"])
 
 
 if __name__ == "__main__":
