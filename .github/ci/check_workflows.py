@@ -37,6 +37,7 @@ def main() -> None:
     for command in (
         "./.github/ci/prepare_update_branch.py",
         "./.github/ci/update.py",
+        "NIX_UPDATE_SYSTEM: ${{ matrix.system }}",
         "./.github/ci/create_pr.py",
     ):
         if command not in update_workflow:

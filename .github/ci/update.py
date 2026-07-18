@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from lib import nix_eval_raw, run, write_output
@@ -13,6 +14,38 @@ from lib import nix_eval_raw, run, write_output
 
 def has_changes() -> bool:
     return run(["git", "diff", "--quiet"], check=False).returncode != 0
+
+
+def nix_update_arguments(name: str) -> list[str]:
+    path = Path("packages") / name / "nix-update-args"
+    if not path.is_file():
+        return []
+    return [
+        argument
+        for line in path.read_text().splitlines()
+        if (argument := line.strip()) and not argument.startswith("#")
+    ]
+
+
+def update_package(name: str, system: str) -> None:
+    package_directory = Path("packages") / name
+    update_script = package_directory / "update.py"
+    if update_script.is_file():
+        run([str(update_script)])
+        return
+    run(
+        [
+            "nix",
+            "run",
+            "nixpkgs#nix-update",
+            "--",
+            "--flake",
+            "--system",
+            system,
+            name,
+            *nix_update_arguments(name),
+        ]
+    )
 
 
 def update_flake_input(name: str) -> None:
@@ -41,8 +74,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    system = os.environ.get("NIX_UPDATE_SYSTEM", "x86_64-linux")
     if args.type == "package":
-        run(["./scripts/update-packages.py", args.name])
+        update_package(args.name, system)
     else:
         update_flake_input(args.name)
 
@@ -51,7 +85,7 @@ def main() -> None:
         return
 
     new_version = (
-        nix_eval_raw(f".#packages.x86_64-linux.{args.name}.version")
+        nix_eval_raw(f".#packages.{system}.{args.name}.version")
         if args.type == "package"
         else flake_input_revision(args.name)
     )

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from lib import run, write_output
 
+PACKAGE_SYSTEMS = ("x86_64-linux", "aarch64-linux", "aarch64-darwin")
 PACKAGE_EXPRESSION = r"""
 let
   config = builtins.fromJSON (builtins.getEnv "DISCOVERY_CONFIG");
@@ -18,16 +19,8 @@ let
   pkgs = flake.packages.${config.system} or { };
   isHidden = pkg: (builtins.tryEval (pkg.passthru.hideFromDocs or false)).value or false;
   shouldDiscover = pkg: !(isHidden pkg) && pkg ? version;
-  versionOf = name:
-    if pkgs ? ${name} && shouldDiscover pkgs.${name} then {
-      inherit name;
-      value = pkgs.${name}.version;
-    } else null;
 in
-if config.filter == null then
   builtins.mapAttrs (_: pkg: if shouldDiscover pkg then pkg.version else null) pkgs
-else
-  builtins.listToAttrs (builtins.filter (item: item != null) (map versionOf config.filter))
 """
 
 
@@ -35,6 +28,7 @@ else
 class MatrixItem:
     current_version: str
     name: str
+    system: str
     type: str
 
 
@@ -43,33 +37,45 @@ def split_filter(value: str) -> list[str] | None:
     return items or None
 
 
-def discover_packages(package_filter: list[str] | None, system: str) -> list[MatrixItem]:
-    config = json.dumps({"filter": package_filter, "system": system})
+def package_versions(system: str) -> dict[str, str]:
     result = run(
         ["nix", "eval", "--json", "--impure", "--expr", PACKAGE_EXPRESSION],
         capture=True,
         check=False,
-        env={"DISCOVERY_CONFIG": config},
+        env={"DISCOVERY_CONFIG": json.dumps({"system": system})},
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to discover packages:\n{result.stderr}")
+        raise RuntimeError(f"Failed to discover packages for {system}:\n{result.stderr}")
 
-    raw_versions = json.loads(result.stdout)
-    if not isinstance(raw_versions, dict):
-        raise RuntimeError("Package discovery returned a non-object JSON value")
-
-    items = [
-        MatrixItem(current_version=version, name=name, type="package")
-        for name, version in raw_versions.items()
+    payload: object = json.loads(result.stdout)
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Package discovery for {system} returned a non-object JSON value")
+    return {
+        name: version
+        for name, version in payload.items()
         if isinstance(name, str) and isinstance(version, str)
-    ]
-    items.sort(key=lambda item: item.name)
+    }
 
-    found = {item.name for item in items}
+
+def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
+    discovered: dict[str, MatrixItem] = {}
+    for system in PACKAGE_SYSTEMS:
+        for name, version in package_versions(system).items():
+            if package_filter is None or name in package_filter:
+                discovered.setdefault(
+                    name,
+                    MatrixItem(
+                        current_version=version,
+                        name=name,
+                        system=system,
+                        type="package",
+                    ),
+                )
+
     for name in package_filter or []:
-        if name not in found:
+        if name not in discovered:
             print(f"::warning::Package {name} was not found or has no version")
-    return items
+    return sorted(discovered.values(), key=lambda item: item.name)
 
 
 def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
@@ -98,18 +104,23 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
             if isinstance(locked, dict)
             else None
         )
-        current_version = str(revision)[:8] if revision is not None else "unknown"
-        items.append(MatrixItem(current_version=current_version, name=name, type="flake-input"))
+        items.append(
+            MatrixItem(
+                current_version=str(revision)[:8] if revision is not None else "unknown",
+                name=name,
+                system="x86_64-linux",
+                type="flake-input",
+            )
+        )
     return items
 
 
 def main() -> None:
     package_filter = split_filter(os.environ.get("PACKAGES", ""))
     input_filter = split_filter(os.environ.get("INPUTS", ""))
-    system = os.environ.get("SYSTEM", "x86_64-linux")
     matrix = {
         "include": [
-            *(asdict(item) for item in discover_packages(package_filter, system)),
+            *(asdict(item) for item in discover_packages(package_filter)),
             *(asdict(item) for item in discover_flake_inputs(input_filter)),
         ]
     }
