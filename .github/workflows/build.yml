@@ -1,7 +1,6 @@
 name: Build and populate cache
 
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -18,85 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flake-check:
-    name: Flake check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org
-            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
-            access-tokens = github.com=${{ github.token }}
-      - name: Validate GitHub Actions workflows
-        run: |
-          set -euo pipefail
-          nix run nixpkgs#actionlint -- .github/workflows/*.yml
-          update_base="$(nix run nixpkgs#yq-go -- -r \
-            '.jobs.update.steps[] | select(.uses == "peter-evans/create-pull-request@v8") | .with.base' \
-            .github/workflows/update-flake.yml)"
-          if [[ -z "$update_base" || "$update_base" == "null" ]]; then
-            echo "::error::create-pull-request must declare an explicit base branch."
-            exit 1
-          fi
-          prepared_update_branches="$(nix run nixpkgs#yq-go -- -r \
-            '[.jobs.update.steps[] | select(.name == "Prepare update branch")] | length' \
-            .github/workflows/update-flake.yml)"
-          if [[ "$prepared_update_branches" != "0" ]]; then
-            echo "::error::create-pull-request must manage the update branch itself."
-            exit 1
-          fi
-      - name: Build and run flake checks
-        env:
-          NIXPKGS_ALLOW_UNFREE: "1"
-        # Pull requests must build packages for the native runner before they can be merged.
-        run: nix flake check --impure --show-trace
-
-  nur-eval:
-    name: NUR evaluation (${{ matrix.nixpkgs }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        nixpkgs:
-          - nixpkgs-unstable
-          - nixos-unstable
-          - nixos-26.05
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/${{ matrix.nixpkgs }}.tar.gz
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            extra-substituters = https://9bingyin.cachix.org https://cache.bingyin.org
-            extra-trusted-public-keys = 9bingyin.cachix.org-1:uXB+kYLEeHo6kpX8NIZtRwwPozYR/JRNRMeFaObkvDo= cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
-            access-tokens = github.com=${{ github.token }}
-      - name: Show nixpkgs version
-        run: nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version'
-      - name: Check NUR evaluation
-        run: |
-          nix-env -f . -qa '*' --meta --xml \
-            --allowed-uris https://static.rust-lang.org \
-            --option restrict-eval true \
-            --option allow-import-from-derivation true \
-            --drv-path --show-trace \
-            -I "nixpkgs=$(nix-instantiate --find-file nixpkgs)" \
-            -I "$PWD" >/dev/null
-      - name: Trigger NUR update
-        if: github.event_name == 'push' && matrix.nixpkgs == 'nixpkgs-unstable'
-        run: curl -XPOST "https://nur-update.nix-community.org/update?repo=9bingyin"
-
   native-packages:
     name: Native package build (${{ matrix.system }})
-    # niks3 的 OIDC token 可写入共享缓存，仅允许受信任的触发事件获取。
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -114,9 +36,8 @@ jobs:
           - runner: macos-latest
             system: aarch64-darwin
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Install Nix
+      - uses: actions/checkout@v7
+      - name: Set up Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
@@ -126,52 +47,14 @@ jobs:
             access-tokens = github.com=${{ github.token }}
       - name: Build and upload native packages
         env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           NIXPKGS_ALLOW_UNFREE: "1"
           SYSTEM: ${{ matrix.system }}
-          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-        run: |
-          set -euo pipefail
+        run: ./.github/ci/build_native_packages.py
 
-          # GitHub 的 OIDC token 有效期较短；niks3 从文件读取 token，故构建期间定期刷新。
-          umask 077
-          token_file="$(mktemp)"
-          refresh_pid=""
-          cleanup() {
-            if [[ -n "$refresh_pid" ]]; then
-              kill "$refresh_pid" 2>/dev/null || true
-            fi
-            rm -f "$token_file" "${token_file}.new"
-          }
-          trap cleanup EXIT
-          refresh_niks3_token() {
-            if ! curl --fail --silent --show-error \
-              -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fniks3.bingyin.org" \
-              | jq --exit-status --raw-output '.value' >"${token_file}.new"; then
-              rm -f "${token_file}.new"
-              return 1
-            fi
-            mv "${token_file}.new" "$token_file"
-          }
-          refresh_niks3_token
-          (
-            while sleep 180; do
-              until refresh_niks3_token; do
-                echo "warning: failed to refresh niks3 OIDC token; retrying in 15 seconds" >&2
-                sleep 15
-              done
-            done
-          ) &
-          refresh_pid=$!
-          export NIKS3_AUTH_TOKEN_FILE="$token_file"
-
-          nix shell nixpkgs#nix-fast-build nixpkgs#niks3 -c nix-fast-build \
-            --flake ".#packages.${SYSTEM}" \
-            --select 'packages: builtins.removeAttrs packages [ "default" "formatter" ]' \
-            --systems "$SYSTEM" \
-            --skip-cached \
-            --eval-workers 1 \
-            --cachix-cache 9bingyin \
-            --niks3-server "$NIKS3_SERVER" \
-            --no-nom \
-            --no-link
+  notify-nur:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger NUR update
+        run: curl --fail --request POST "https://nur-update.nix-community.org/update?repo=9bingyin"

@@ -14,5 +14,8 @@ pkgs.mkShellNoCC {
 
   shellHook = ''
     export PRJ_ROOT=$PWD
+    if [[ -d .git ]]; then
+      install -Dm755 scripts/pre-push.py .git/hooks/pre-push
+    fi
   '';
 }

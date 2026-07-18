@@ -1,19 +1,17 @@
-#!/usr/bin/env python3
-"""Build a GitHub Actions matrix for package and flake-input updates."""
+#!/usr/bin/env nix
+#! nix shell --inputs-from .# nixpkgs#python3 --command python3
+"""Build the GitHub Actions update matrix for packages and flake inputs."""
 
 from __future__ import annotations
 
 import json
-import logging
 import os
-import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
-log = logging.getLogger("discovery")
+from lib import run, write_output
 
-PACKAGE_EXPR = r"""
+PACKAGE_EXPRESSION = r"""
 let
   config = builtins.fromJSON (builtins.getEnv "DISCOVERY_CONFIG");
   flake = builtins.getFlake (toString ./.);
@@ -33,27 +31,11 @@ else
 """
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MatrixItem:
-    type: str
-    name: str
     current_version: str
-
-    def to_dict(self) -> dict[str, str]:
-        return {
-            "type": self.type,
-            "name": self.name,
-            "current_version": self.current_version,
-        }
-
-
-def write_output(key: str, value: str) -> None:
-    output_path = os.environ.get("GITHUB_OUTPUT")
-    if output_path:
-        with Path(output_path).open("a") as output:
-            output.write(f"{key}={value}\n")
-    else:
-        log.info("output: %s=%s", key, value)
+    name: str
+    type: str
 
 
 def split_filter(value: str) -> list[str] | None:
@@ -61,80 +43,79 @@ def split_filter(value: str) -> list[str] | None:
     return items or None
 
 
-def discover_packages(packages_filter: list[str] | None, system: str) -> list[MatrixItem]:
-    config = json.dumps({"system": system, "filter": packages_filter})
-    result = subprocess.run(
-        ["nix", "eval", "--json", "--impure", "--expr", PACKAGE_EXPR],
-        capture_output=True,
-        text=True,
-        env={**os.environ, "DISCOVERY_CONFIG": config},
+def discover_packages(package_filter: list[str] | None, system: str) -> list[MatrixItem]:
+    config = json.dumps({"filter": package_filter, "system": system})
+    result = run(
+        ["nix", "eval", "--json", "--impure", "--expr", PACKAGE_EXPRESSION],
+        capture=True,
         check=False,
+        env={"DISCOVERY_CONFIG": config},
     )
     if result.returncode != 0:
-        log.error("failed to discover packages:\n%s", result.stderr)
-        raise SystemExit(result.returncode)
+        raise RuntimeError(f"Failed to discover packages:\n{result.stderr}")
 
-    versions: dict[str, str | None] = json.loads(result.stdout)
+    raw_versions = json.loads(result.stdout)
+    if not isinstance(raw_versions, dict):
+        raise RuntimeError("Package discovery returned a non-object JSON value")
+
     items = [
-        MatrixItem("package", name, version)
-        for name, version in sorted(versions.items())
-        if version is not None
+        MatrixItem(current_version=version, name=name, type="package")
+        for name, version in raw_versions.items()
+        if isinstance(name, str) and isinstance(version, str)
     ]
+    items.sort(key=lambda item: item.name)
 
-    if packages_filter:
-        found = {item.name for item in items}
-        for name in packages_filter:
-            if name not in found:
-                log.warning("package %s was not found or has no version", name)
-
+    found = {item.name for item in items}
+    for name in package_filter or []:
+        if name not in found:
+            print(f"::warning::Package {name} was not found or has no version")
     return items
 
 
-def root_input_names(lock: dict[str, Any]) -> list[str]:
-    nodes = lock.get("nodes", {})
-    root = nodes.get("root", {})
-    inputs = root.get("inputs", {})
-    if not isinstance(inputs, dict):
-        return []
-    return sorted(inputs)
-
-
-def input_revision(lock: dict[str, Any], name: str) -> str:
-    node = lock.get("nodes", {}).get(name, {})
-    locked = node.get("locked", {})
-    if not isinstance(locked, dict):
-        return "unknown"
-    return str(locked.get("rev") or locked.get("lastModified") or "unknown")[:8]
-
-
-def discover_flake_inputs(inputs_filter: list[str] | None) -> list[MatrixItem]:
+def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
     lock_path = Path("flake.lock")
     if not lock_path.exists():
         return []
 
     lock = json.loads(lock_path.read_text())
-    names = inputs_filter or root_input_names(lock)
-    return [MatrixItem("flake-input", name, input_revision(lock, name)) for name in names]
+    if not isinstance(lock, dict):
+        raise RuntimeError("flake.lock is not a JSON object")
+    nodes = lock.get("nodes")
+    if not isinstance(nodes, dict):
+        raise RuntimeError("flake.lock has no nodes")
+    root = nodes.get("root")
+    root_inputs = root.get("inputs") if isinstance(root, dict) else None
+    if not isinstance(root_inputs, dict):
+        raise RuntimeError("flake.lock has no root inputs")
+
+    names = input_filter or sorted(root_inputs)
+    items: list[MatrixItem] = []
+    for name in names:
+        node = nodes.get(name)
+        locked = node.get("locked") if isinstance(node, dict) else None
+        revision = (
+            locked.get("rev") or locked.get("lastModified")
+            if isinstance(locked, dict)
+            else None
+        )
+        current_version = str(revision)[:8] if revision is not None else "unknown"
+        items.append(MatrixItem(current_version=current_version, name=name, type="flake-input"))
+    return items
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-    packages_filter = split_filter(os.environ.get("PACKAGES", ""))
-    inputs_filter = split_filter(os.environ.get("INPUTS", ""))
+    package_filter = split_filter(os.environ.get("PACKAGES", ""))
+    input_filter = split_filter(os.environ.get("INPUTS", ""))
     system = os.environ.get("SYSTEM", "x86_64-linux")
-
-    items = [
-        *discover_packages(packages_filter, system),
-        *discover_flake_inputs(inputs_filter),
-    ]
-    matrix = {"include": [item.to_dict() for item in items]}
-
-    log.info("discovered %d update target(s)", len(items))
-    log.info(json.dumps(matrix, indent=2))
-
+    matrix = {
+        "include": [
+            *(asdict(item) for item in discover_packages(package_filter, system)),
+            *(asdict(item) for item in discover_flake_inputs(input_filter)),
+        ]
+    }
+    print(json.dumps(matrix, indent=2))
     write_output("matrix", json.dumps(matrix, separators=(",", ":")))
-    write_output("has-updates", str(bool(items)).lower())
+    write_output("has-updates", str(bool(matrix["include"])).lower())
 
 
 if __name__ == "__main__":
