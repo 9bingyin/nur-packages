@@ -1,6 +1,6 @@
 #!/usr/bin/env nix
 #! nix shell --inputs-from .# nixpkgs#python3 --command python3
-"""Run repository validation locally before Git sends a push."""
+"""Run strict repository validation manually."""
 
 from __future__ import annotations
 
