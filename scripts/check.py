@@ -31,6 +31,34 @@ def main() -> None:
             "pyright",
         ]
     )
+    command(
+        [
+            "nix",
+            "shell",
+            "--inputs-from",
+            ".#",
+            "nixpkgs#ruff",
+            "--command",
+            "ruff",
+            "check",
+            ".github",
+            "scripts",
+            "packages",
+            "--select",
+            "F401,F811,F821,F822,F823,F841",
+        ]
+    )
+    command(
+        [
+            "nix",
+            "run",
+            "nixpkgs#deadnix",
+            "--",
+            "--fail",
+            "--no-lambda-pattern-names",
+            ".",
+        ]
+    )
     command(["./.github/ci/check_workflows.py"])
     command(["./.github/ci/check_readme.py"])
 

@@ -49,7 +49,6 @@ jobs:
         env:
           PACKAGES: ${{ inputs.packages }}
           INPUTS: ${{ inputs.inputs }}
-          SYSTEM: x86_64-linux
         run: ./.github/ci/discovery.py
 
   update:

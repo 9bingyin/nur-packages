@@ -1,5 +1,5 @@
 # Flat NUR-compatible overlay. Packages are exposed at top level, e.g. pkgs.longbridge.
-self: super:
+_self: super:
 let
   reservedNames = [
     "lib"
