@@ -29,8 +29,6 @@ def main() -> None:
             "nixpkgs#pyright",
             "--command",
             "pyright",
-            ".github/ci",
-            "scripts",
         ]
     )
     command(["./.github/ci/check_workflows.py"])

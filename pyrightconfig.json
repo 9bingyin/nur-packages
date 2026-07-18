@@ -1,5 +1,5 @@
 {
-  "include": [".github/ci", "scripts"],
+  "include": [".github/ci", "packages/**/update.py", "scripts"],
   "typeCheckingMode": "strict",
   "reportMissingTypeStubs": "none"
 }
