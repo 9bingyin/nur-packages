@@ -43,6 +43,13 @@ jobs:
             echo "::error::create-pull-request must declare an explicit base branch."
             exit 1
           fi
+          prepared_update_branches="$(nix run nixpkgs#yq-go -- -r \
+            '[.jobs.update.steps[] | select(.name == "Prepare update branch")] | length' \
+            .github/workflows/update-flake.yml)"
+          if [[ "$prepared_update_branches" != "0" ]]; then
+            echo "::error::create-pull-request must manage the update branch itself."
+            exit 1
+          fi
       - name: Build and run flake checks
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
