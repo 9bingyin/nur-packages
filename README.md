@@ -2,7 +2,7 @@
 
 面向 NixOS、nix-darwin 和独立 Flake 使用的个人 [NUR](https://github.com/nix-community/NUR) 软件包仓库。
 
-[![Build and populate cache](https://github.com/9bingyin/nur-packages/actions/workflows/build.yml/badge.svg)](https://github.com/9bingyin/nur-packages/actions/workflows/build.yml)
+[![Build Package Cache](https://github.com/9bingyin/nur-packages/actions/workflows/build-cache.yml/badge.svg)](https://github.com/9bingyin/nur-packages/actions/workflows/build-cache.yml)
 [![Cachix Cache](https://img.shields.io/badge/cachix-9bingyin-blue.svg)](https://9bingyin.cachix.org)
 
 仓库持续在 `x86_64-linux`、`aarch64-linux` 与 `aarch64-darwin` 上评估；主分支会构建并推送可缓存的软件包。

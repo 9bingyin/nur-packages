@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   update:
-    uses: ./.github/workflows/update-flake.yml
+    uses: ./.github/workflows/update-targets.yml
     with:
       packages: ${{ github.event.inputs.packages || '' }}
       inputs: ${{ github.event.inputs.inputs || '' }}

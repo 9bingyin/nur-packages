@@ -1,4 +1,4 @@
-name: Update Flake
+name: Update Targets
 
 on:
   workflow_call:
