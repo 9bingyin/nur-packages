@@ -156,6 +156,8 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.NUR_UPDATE_TOKEN || github.token }}
+          # The preparation step checks out the update branch; never infer it as the PR base.
+          base: ${{ github.event.repository.default_branch }}
           branch: automation/update-${{ matrix.type }}-${{ matrix.name }}
           delete-branch: true
           commit-message: ${{ steps.update.outputs.title }}
