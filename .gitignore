@@ -1,6 +1,14 @@
 __pycache__/
 *.py[cod]
 
+# Local-only validation tooling
+pyrightconfig.json
+scripts/check.py
+.github/actionlint.yaml
+.github/ci/check_maintainers.py
+.github/ci/check_readme.py
+.github/ci/check_workflows.py
+
 result
 result-*
 
