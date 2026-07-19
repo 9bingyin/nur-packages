@@ -12,7 +12,7 @@ stdenvNoCC.mkDerivation {
   version = "2.2.1";
 
   src = fetchurl {
-    url = "https://web.archive.org/web/20260706204715id_/https://authr3-media.r2.dreamtonics.com/updates/Synthesizer-V-Studio-2-Pro/svstudio2-pro-setup-2.2.1_2.2.1_131585_dHImfUHcTegfTVBz.pkg";
+    url = "https://authr3-media.r2.dreamtonics.com/updates/Synthesizer-V-Studio-2-Pro/svstudio2-pro-setup-2.2.1_2.2.1_131585_dHImfUHcTegfTVBz.pkg";
     hash = "sha256-/CLO6ZCl3HaQPbU8Dpap3VSoHURZmJQDux7MD6bQ/PI=";
   };
 

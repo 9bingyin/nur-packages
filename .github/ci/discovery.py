@@ -12,6 +12,7 @@ from pathlib import Path
 from lib import run, write_output
 
 PACKAGE_SYSTEMS = ("x86_64-linux", "aarch64-linux", "aarch64-darwin")
+MANUAL_UPDATE_MARKER = "no-auto-update"
 PACKAGE_EXPRESSION = r"""
 let
   config = builtins.fromJSON (builtins.getEnv "DISCOVERY_CONFIG");
@@ -57,10 +58,18 @@ def package_versions(system: str) -> dict[str, str]:
     }
 
 
+def automatic_updates_disabled(name: str) -> bool:
+    return (Path("packages") / name / MANUAL_UPDATE_MARKER).is_file()
+
+
 def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
     discovered: dict[str, MatrixItem] = {}
+    disabled: set[str] = set()
     for system in PACKAGE_SYSTEMS:
         for name, version in package_versions(system).items():
+            if automatic_updates_disabled(name):
+                disabled.add(name)
+                continue
             if package_filter is None or name in package_filter:
                 discovered.setdefault(
                     name,
@@ -73,7 +82,9 @@ def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
                 )
 
     for name in package_filter or []:
-        if name not in discovered:
+        if name in disabled:
+            print(f"::warning::Package {name} has automatic updates disabled")
+        elif name not in discovered:
             print(f"::warning::Package {name} was not found or has no version")
     return sorted(discovered.values(), key=lambda item: item.name)
 
