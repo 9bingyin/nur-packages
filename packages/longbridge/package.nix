@@ -55,7 +55,10 @@ stdenv.mkDerivation {
       autoPatchelfHook
       makeWrapper
     ]
-    ++ lib.optionals stdenv.hostPlatform.isDarwin [ undmg ];
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [
+      makeWrapper
+      undmg
+    ];
 
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
     glib
@@ -100,7 +103,9 @@ stdenv.mkDerivation {
         mkdir -p $out/Applications $out/bin
         cp -R Longbridge.app $out/Applications/
 
-        ln -s $out/Applications/Longbridge.app/Contents/MacOS/longbridge $out/bin/longbridge-desktop
+        makeWrapper \
+          $out/Applications/Longbridge.app/Contents/MacOS/longbridge \
+          $out/bin/longbridge-desktop
 
         runHook postInstall
       ''

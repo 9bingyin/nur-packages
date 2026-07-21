@@ -5,6 +5,7 @@
   xar,
   gzip,
   cpio,
+  makeWrapper,
 }:
 
 stdenvNoCC.mkDerivation {
@@ -20,6 +21,7 @@ stdenvNoCC.mkDerivation {
     xar
     gzip
     cpio
+    makeWrapper
   ];
 
   dontConfigure = true;
@@ -56,7 +58,8 @@ stdenvNoCC.mkDerivation {
     cp -R Applications/* "$out/Applications/"
     cp -R Library/* "$out/Library/"
 
-    ln -s "$out/Applications/Synthesizer V Studio 2 Pro.app/Contents/MacOS/synthv-studio" \
+    makeWrapper \
+      "$out/Applications/Synthesizer V Studio 2 Pro.app/Contents/MacOS/synthv-studio" \
       "$out/bin/synthv-studio-2-pro"
 
     runHook postInstall
