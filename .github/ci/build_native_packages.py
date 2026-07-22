@@ -1,10 +1,9 @@
 #!/usr/bin/env nix
 #! nix shell --inputs-from .# nixpkgs#python3 --command python3
-"""Build native packages while refreshing the short-lived niks3 OIDC token."""
+"""Build uncached native packages while refreshing the short-lived niks3 OIDC token."""
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import subprocess
@@ -58,14 +57,7 @@ def refresh_token(path: Path, stop: threading.Event) -> None:
                 stop.wait(15)
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("package", help="Public package attribute to build and upload")
-    return parser.parse_args()
-
-
 def main() -> None:
-    package = parse_args().package
     system = required_environment("SYSTEM")
     with tempfile.TemporaryDirectory(prefix="niks3-auth-") as directory:
         token_path = Path(directory) / "token"
@@ -85,7 +77,7 @@ def main() -> None:
                     "--flake",
                     f".#packages.{system}",
                     "--select",
-                    f'packages: {{ {json.dumps(package)} = packages.{json.dumps(package)}; }}',
+                    'packages: builtins.removeAttrs packages [ "default" "formatter" ]',
                     "--systems",
                     system,
                     "--skip-cached",
