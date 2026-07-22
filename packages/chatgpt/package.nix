@@ -6,15 +6,15 @@
   unzip,
 }:
 let
-  version = "26.715.70719";
+  version = "26.715.72028";
   sources = {
     aarch64-darwin = {
       arch = "arm64";
-      hash = "sha256-70pcwJ5UbKH4nFw+iPULnUaEfn2iE2mUSYCAYHjCfuI=";
+      hash = "sha256-S/C0Elf1oS47PrqPRyI/fxQ0/D3zHfnTMf8kMYZhnl8=";
     };
     x86_64-darwin = {
       arch = "x64";
-      hash = "sha256-0WAD0pxonjXXZpk4MKn5RDoy458TEhU5RRwZJZeK/4U=";
+      hash = "sha256-cbZ2FXgeLm9LK5ERl0cthaI4ty8C5lKHdAqevoBFTIY=";
     };
   };
   source =
