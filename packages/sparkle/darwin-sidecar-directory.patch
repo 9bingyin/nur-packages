@@ -1,0 +1,11 @@
+diff --git a/src/main/utils/dirs.ts b/src/main/utils/dirs.ts
+index f404d33..b1b0b40 100644
+--- a/src/main/utils/dirs.ts
++++ b/src/main/utils/dirs.ts
+@@ -95,0 +96,2 @@ export function serviceIpcPath(): string {
++const darwinManagedMihomoCoreDir = '/Library/Application Support/com.github.9bingyin.nur-packages.sparkle/sidecar'
++
+@@ -96,0 +99,3 @@ export function mihomoCoreDir(): string {
++  if (process.platform === 'darwin' && existsSync(darwinManagedMihomoCoreDir)) {
++    return darwinManagedMihomoCoreDir
++  }

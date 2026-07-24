@@ -59,10 +59,10 @@ in
 执行 `darwin-rebuild switch` 后，模块会将应用内置的 `mihomo` 和 `mihomo-alpha` 原子部署到：
 
 ```text
-/Library/Nix/Sparkle/sidecar/
+/Library/Application Support/com.github.9bingyin.nur-packages.sparkle/sidecar/
 ```
 
-两个文件均为 `root:wheel`、`4755`，并在替换前验证代码签名。Sparkle 会优先使用这个受 Nix 管理的目录；找不到该目录时则回退到 App Bundle 中的 `Resources/sidecar`。因此通过 Finder、Dock、Spotlight 或 Home Manager profile 启动应用时，都不依赖环境变量或应用的实际安装目录。
+两个文件均为 `root:wheel`、`4755`，并在替换前验证代码签名。该目录位于 macOS 的系统级 Application Support 域，Sparkle 会优先使用它；找不到时则回退到 App Bundle 中的 `Resources/sidecar`。因此通过 Finder、Dock、Spotlight 或 Home Manager profile 启动应用时，都不依赖环境变量或应用的实际安装目录。
 
 如果不使用 Home Manager，可由模块安装应用本身：
 

@@ -91,6 +91,8 @@ in
 buildNpmPackage {
   inherit pname version src;
 
+  patches = [ ./darwin-sidecar-directory.patch ];
+
   nodejs = nodejs_26;
   npmConfigHook = pnpmConfigHook;
   npmDeps = null;
@@ -110,12 +112,6 @@ buildNpmPackage {
   postPatch = ''
     mkdir -p extra
     cp -R ${resources}/* extra/
-
-    # The optional nix-darwin module installs SetUID copies of the built-in
-    # cores outside the Nix store. Keep working without that module installed.
-    substituteInPlace src/main/utils/dirs.ts \
-      --replace-fail "return path.join(resourcesDir(), 'sidecar')" \
-      "return existsSync('/Library/Nix/Sparkle/sidecar') ? '/Library/Nix/Sparkle/sidecar' : path.join(resourcesDir(), 'sidecar')"
   '';
 
   buildPhase = ''

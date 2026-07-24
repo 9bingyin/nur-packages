@@ -7,9 +7,11 @@
 
 let
   cfg = config.services.sparkle;
-  managedDirectory = "/Library/Nix/Sparkle";
+  managedDirectory = "/Library/Application Support/com.github.9bingyin.nur-packages.sparkle";
   sidecarDirectory = "${managedDirectory}/sidecar";
   marker = "${managedDirectory}/.managed-by-nix-sparkle";
+  legacyManagedDirectory = "/Library/Nix/Sparkle";
+  legacyMarker = "${legacyManagedDirectory}/.managed-by-nix-sparkle";
   sourceDirectory = "${cfg.package}/Applications/Sparkle.app/Contents/Resources/sidecar";
   install = lib.getExe' pkgs.coreutils "install";
   cmp = lib.getExe' pkgs.diffutils "cmp";
@@ -52,8 +54,28 @@ in
           managedDirectory=${lib.escapeShellArg managedDirectory}
           sidecarDirectory=${lib.escapeShellArg sidecarDirectory}
           marker=${lib.escapeShellArg marker}
+          legacyManagedDirectory=${lib.escapeShellArg legacyManagedDirectory}
+          legacyMarker=${lib.escapeShellArg legacyMarker}
 
           ensureSecureDirectory() {
+            local directory="$1"
+            local metadata owner mode
+
+            if [ -L "$directory" ] || [ ! -d "$directory" ]; then
+              echo "invalid Sparkle core directory: $directory" >&2
+              exit 1
+            fi
+
+            metadata=$(/usr/bin/stat -f '%u:%Lp' "$directory")
+            owner=''${metadata%%:*}
+            mode=''${metadata#*:}
+            if [ "$owner" != 0 ] || (( (8#$mode & 022) != 0 )); then
+              echo "insecure Sparkle core directory: $directory" >&2
+              exit 1
+            fi
+          }
+
+          ensureManagedDirectory() {
             local directory="$1"
             local metadata owner group mode
 
@@ -68,15 +90,27 @@ in
             metadata=''${metadata#*:}
             group=''${metadata%%:*}
             mode=''${metadata#*:}
-            if [ "$owner" != 0 ] || [ "$group" != 0 ] || (( (8#$mode & 022) != 0 )); then
+            if [ "$owner" != 0 ] || [ "$group" != 0 ] || [ "$mode" != 755 ]; then
               echo "insecure Sparkle core directory: $directory" >&2
               exit 1
             fi
           }
 
-          ensureSecureDirectory /Library/Nix
-          ensureSecureDirectory "$managedDirectory"
-          ensureSecureDirectory "$sidecarDirectory"
+          removeManagedDirectory() {
+            local directory="$1"
+            local markerPath="$2"
+
+            if [ -d "$directory" ] && [ ! -L "$directory" ] \
+              && [ -f "$markerPath" ] && [ ! -L "$markerPath" ] \
+              && grep -qxF 'managed by nix-darwin services.sparkle' "$markerPath"; then
+              rm -rf "$directory"
+            fi
+          }
+
+          ensureSecureDirectory /Library
+          ensureSecureDirectory '/Library/Application Support'
+          ensureManagedDirectory "$managedDirectory"
+          ensureManagedDirectory "$sidecarDirectory"
           if [ -L "$marker" ]; then
             echo "refusing symbolic link in Sparkle marker path: $marker" >&2
             exit 1
@@ -110,17 +144,29 @@ in
             chown root:wheel "$target"
             chmod 4755 "$target"
           done
+
+          removeManagedDirectory "$legacyManagedDirectory" "$legacyMarker"
         ''
       else
         ''
           managedDirectory=${lib.escapeShellArg managedDirectory}
           marker=${lib.escapeShellArg marker}
+          legacyManagedDirectory=${lib.escapeShellArg legacyManagedDirectory}
+          legacyMarker=${lib.escapeShellArg legacyMarker}
 
-          if [ -d "$managedDirectory" ] && [ ! -L "$managedDirectory" ] \
-            && [ -f "$marker" ] && [ ! -L "$marker" ] \
-            && grep -qxF 'managed by nix-darwin services.sparkle' "$marker"; then
-            rm -rf "$managedDirectory"
-          fi
+          removeManagedDirectory() {
+            local directory="$1"
+            local markerPath="$2"
+
+            if [ -d "$directory" ] && [ ! -L "$directory" ] \
+              && [ -f "$markerPath" ] && [ ! -L "$markerPath" ] \
+              && grep -qxF 'managed by nix-darwin services.sparkle' "$markerPath"; then
+              rm -rf "$directory"
+            fi
+          }
+
+          removeManagedDirectory "$managedDirectory" "$marker"
+          removeManagedDirectory "$legacyManagedDirectory" "$legacyMarker"
         ''
     );
   };
