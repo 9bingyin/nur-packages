@@ -110,6 +110,12 @@ buildNpmPackage {
   postPatch = ''
     mkdir -p extra
     cp -R ${resources}/* extra/
+
+    # The optional nix-darwin module installs SetUID copies of the built-in
+    # cores outside the Nix store. Keep working without that module installed.
+    substituteInPlace src/main/utils/dirs.ts \
+      --replace-fail "return path.join(resourcesDir(), 'sidecar')" \
+      "return existsSync('/Library/Nix/Sparkle/sidecar') ? '/Library/Nix/Sparkle/sidecar' : path.join(resourcesDir(), 'sidecar')"
   '';
 
   buildPhase = ''

@@ -78,6 +78,7 @@
       };
 
       darwinModules = {
+        sparkle = import ./modules/darwin/sparkle.nix;
         synthesizer-v-studio-2-pro = import ./modules/darwin/synthesizer-v-studio-2-pro.nix;
       };
     };

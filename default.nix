@@ -26,6 +26,7 @@ in
     usque = ./modules/nixos/usque.nix;
   };
   darwinModules = {
+    sparkle = ./modules/darwin/sparkle.nix;
     synthesizer-v-studio-2-pro = ./modules/darwin/synthesizer-v-studio-2-pro.nix;
   };
   overlays = import ./overlays;
