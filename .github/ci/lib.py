@@ -10,6 +10,12 @@ from typing import Literal
 
 UpdateType = Literal["package", "flake-input"]
 
+NATIVE_RUNNERS = {
+    "x86_64-linux": "ubuntu-latest",
+    "aarch64-linux": "ubuntu-24.04-arm",
+    "aarch64-darwin": "macos-latest",
+}
+
 
 def run(
     command: Sequence[str],

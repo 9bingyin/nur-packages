@@ -10,13 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import PurePosixPath
 from typing import TypeGuard, cast
 
-from lib import run, write_output
-
-RUNNERS = {
-    "x86_64-linux": "ubuntu-latest",
-    "aarch64-linux": "ubuntu-24.04-arm",
-    "aarch64-darwin": "macos-latest",
-}
+from lib import NATIVE_RUNNERS, run, write_output
 GLOBAL_PACKAGE_PATHS = frozenset({"default.nix", "flake.lock", "flake.nix"})
 GLOBAL_PACKAGE_PREFIXES = ("lib/", "overlays/")
 PACKAGE_EXPRESSION = r"""
@@ -117,7 +111,7 @@ def main() -> None:
     items = (
         [
             MatrixItem(package=package, runner=runner, system=system)
-            for system, runner in RUNNERS.items()
+            for system, runner in NATIVE_RUNNERS.items()
             for package in packages_for(system)
             if package_filter is None or package in package_filter
         ]

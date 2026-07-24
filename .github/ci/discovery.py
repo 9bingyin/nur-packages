@@ -9,9 +9,9 @@ import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from lib import run, write_output
+from lib import NATIVE_RUNNERS, run, write_output
 
-PACKAGE_SYSTEMS = ("x86_64-linux", "aarch64-linux", "aarch64-darwin")
+PACKAGE_SYSTEMS = tuple(NATIVE_RUNNERS)
 MANUAL_UPDATE_MARKER = "no-auto-update"
 PACKAGE_EXPRESSION = r"""
 let
@@ -29,6 +29,7 @@ in
 class MatrixItem:
     current_version: str
     name: str
+    runner: str
     system: str
     type: str
 
@@ -76,6 +77,7 @@ def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
                     MatrixItem(
                         current_version=version,
                         name=name,
+                        runner=NATIVE_RUNNERS[system],
                         system=system,
                         type="package",
                     ),
@@ -119,6 +121,7 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
             MatrixItem(
                 current_version=str(revision)[:8] if revision is not None else "unknown",
                 name=name,
+                runner=NATIVE_RUNNERS["x86_64-linux"],
                 system="x86_64-linux",
                 type="flake-input",
             )
