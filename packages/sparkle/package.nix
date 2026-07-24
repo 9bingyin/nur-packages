@@ -5,8 +5,8 @@
   fetchFromGitHub,
   fetchPnpmDeps,
   fetchurl,
-  fetchzip,
   cpio,
+  electron_42,
   gzip,
   makeWrapper,
   nodejs_26,
@@ -24,14 +24,6 @@ let
     repo = "sparkle";
     tag = version;
     hash = "sha256-IFK7rhT3i+Qct0FIEYFbgQpJ5cjS7JMKd2tmOq5ZSNg=";
-  };
-
-  electronVersion = "42.4.0";
-
-  electronDist = fetchzip {
-    url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-darwin-arm64.zip";
-    hash = "sha256-tk5uDrymIkA1r0MZ8ROXbUTgB730HJh69FdxzONZczo=";
-    stripRoot = false;
   };
 
   resources = stdenvNoCC.mkDerivation {
@@ -117,14 +109,14 @@ buildNpmPackage {
   buildPhase = ''
     runHook preBuild
 
-    cp -R ${electronDist} electron-dist
+    cp -R ${electron_42.dist} electron-dist
     chmod -R u+w electron-dist
 
     pnpm exec electron-vite build
     pnpm exec electron-builder \
       --dir \
       -c.electronDist=electron-dist \
-      -c.electronVersion=${electronVersion} \
+      -c.electronVersion=${electron_42.version} \
       -c.mac.identity=null \
       -c.npmRebuild=false
 
