@@ -83,8 +83,6 @@ def main() -> None:
                     "--skip-cached",
                     "--eval-workers",
                     "1",
-                    "--cachix-cache",
-                    "9bingyin",
                     "--niks3-server",
                     required_environment("NIKS3_SERVER"),
                     "--no-nom",
