@@ -26,6 +26,13 @@ buildGoModule rec {
     "-X github.com/SurgeDM/Surge/cmd.Version=${version}"
   ];
 
+  # Go installs as "Surge" from the module path on case-sensitive filesystems.
+  postInstall = ''
+    if [[ -e $out/bin/Surge && ! -e $out/bin/surge ]]; then
+      ln -s Surge $out/bin/surge
+    fi
+  '';
+
   checkPhase = ''
     runHook preCheck
     go test -race ./...
