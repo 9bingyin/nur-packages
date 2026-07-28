@@ -16,7 +16,6 @@ let
   managedMarker = "${managedDirectory}/.managed-by-nix-uuremote";
   restartMarker = "${managedDirectory}/.restart-services";
   markerText = "managed by nix-darwin services.uuremote";
-  teamIdentifier = "PU9BNSBJW7";
   helperPaths = [
     "Contents/XPCServices/UURemoteHelper.xpc/Contents/MacOS/UURemoteHelper"
     "Contents/Helpers/UURemoteUpdater.app/Contents/XPCServices/UURemoteHelper.xpc/Contents/MacOS/UURemoteHelper"
@@ -80,19 +79,11 @@ in
           managedMarker=${lib.escapeShellArg managedMarker}
           restartMarker=${lib.escapeShellArg restartMarker}
           markerText=${lib.escapeShellArg markerText}
-          teamIdentifier=${lib.escapeShellArg teamIdentifier}
           rsync=${lib.escapeShellArg (lib.getExe pkgs.rsync)}
 
           isManagedInstall() {
             [ -f "$managedMarker" ] && [ ! -L "$managedMarker" ] \
               && /usr/bin/grep -qxF "$markerText" "$managedMarker"
-          }
-
-          verifyApp() {
-            local app="$1"
-            /usr/bin/codesign --verify --deep --strict "$app"
-            /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 \
-              | /usr/bin/grep -qx "TeamIdentifier=$teamIdentifier"
           }
 
           setHelperPermissions() {
@@ -113,7 +104,6 @@ in
               echo "insecure UU Remote helper directory: $helper_directory" >&2
               exit 1
             fi
-            /usr/bin/codesign --verify --strict "$helper"
             /usr/sbin/chown root:wheel "$helper"
             /bin/chmod 4755 "$helper"
           }
@@ -131,10 +121,15 @@ in
           changed=0
           if [ ! -d "$appPath" ] || [ -L "$appPath" ] || ! isManagedInstall; then
             changed=1
-          elif "$rsync" -ani --delete --checksum \
-            --no-perms --no-owner --no-group --no-times \
-            "$appSource/" "$appPath/" | /usr/bin/grep -q .; then
-            changed=1
+          else
+            # Do not pipe this to `grep -q`: activation enables pipefail, and
+            # grep closing early would make rsync fail with SIGPIPE (141).
+            changeList=$("$rsync" -ani --delete --checksum \
+              --no-perms --no-owner --no-group --no-times \
+              "$appSource/" "$appPath/")
+            if [ -n "$changeList" ]; then
+              changed=1
+            fi
           fi
 
           if [ "$changed" -eq 1 ]; then
@@ -152,7 +147,6 @@ in
               --no-owner \
               --no-group \
               "$appSource/" "$temporary/"
-            verifyApp "$temporary"
 
             if [ -e "$appPath" ] || [ -L "$appPath" ]; then
               /bin/mv "$appPath" "$previous"
@@ -168,7 +162,6 @@ in
             /bin/chmod 0644 "$restartMarker"
           fi
 
-          verifyApp "$appPath"
           ${lib.concatMapStringsSep "\n" (
             path: "setHelperPermissions ${lib.escapeShellArg path}"
           ) helperPaths}

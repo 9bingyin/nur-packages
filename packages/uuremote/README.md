@@ -58,7 +58,7 @@ in
 2. 由 nix-darwin 声明式安装并重载：
    - `/Library/LaunchAgents/com.netease.uuremote.agent.plist`
    - `/Library/LaunchDaemons/com.netease.uuremote.daemon.plist`
-3. 验证 app 的 Developer ID 签名及 Team ID，再给以下 helper 设置 `root:wheel`、`4755`：
+3. 检查 helper 路径与父目录权限后，给以下 helper 设置 `root:wheel`、`4755`：
    - `.../XPCServices/UURemoteHelper.xpc/Contents/MacOS/UURemoteHelper`
    - `.../Helpers/UURemoteUpdater.app/.../UURemoteHelper`
 4. 将仅包含 `uuyc-cli` 的 wrapper 加入系统 PATH；不会创建 `/usr/local/bin` 链接
