@@ -46,11 +46,29 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     cd root
     gzip -dc ../UURemote.pkg/Payload | cpio -idm --quiet
 
-    mkdir -p "$out/Applications" "$out/bin"
+    mkdir -p "$out/Applications" "$out/Library" "$out/bin"
     cp -R Applications/UURemote.app "$out/Applications/"
+    cp -R Library/LaunchAgents "$out/Library/"
+    cp -R Library/LaunchDaemons "$out/Library/"
+
+    # Official installer renames the channel directory from nochannel.
+    if [ -d "$out/Applications/UURemote.app/Contents/Resources/channel/nochannel" ]; then
+      mv \
+        "$out/Applications/UURemote.app/Contents/Resources/channel/nochannel" \
+        "$out/Applications/UURemote.app/Contents/Resources/channel/gwqd"
+    fi
+    if [ -d "$out/Applications/UURemote.app/Contents/Helpers/UURemoteUpdater.app/Contents/Resources/channel/nochannel" ]; then
+      mv \
+        "$out/Applications/UURemote.app/Contents/Helpers/UURemoteUpdater.app/Contents/Resources/channel/nochannel" \
+        "$out/Applications/UURemote.app/Contents/Helpers/UURemoteUpdater.app/Contents/Resources/channel/gwqd"
+    fi
+
     makeWrapper \
       "$out/Applications/UURemote.app/Contents/MacOS/UURemote" \
       "$out/bin/uuremote"
+    makeWrapper \
+      "$out/Applications/UURemote.app/Contents/Helpers/uuyc-cli" \
+      "$out/bin/uuyc-cli"
 
     runHook postInstall
   '';
@@ -58,7 +76,12 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   doInstallCheck = true;
   installCheckPhase = ''
     test -x "$out/Applications/UURemote.app/Contents/MacOS/UURemote"
+    test -x "$out/Applications/UURemote.app/Contents/Helpers/uuyc-cli"
+    test -f "$out/Library/LaunchAgents/com.netease.uuremote.agent.plist"
+    test -f "$out/Library/LaunchDaemons/com.netease.uuremote.daemon.plist"
+    test -d "$out/Applications/UURemote.app/Contents/Resources/channel/gwqd"
     test ! -L "$out/bin/uuremote"
+    test ! -L "$out/bin/uuyc-cli"
   '';
 
   meta = {
