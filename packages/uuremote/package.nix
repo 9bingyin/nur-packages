@@ -50,6 +50,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     cp -R Applications/UURemote.app "$out/Applications/"
     cp -R Library/LaunchAgents "$out/Library/"
     cp -R Library/LaunchDaemons "$out/Library/"
+    # Normalize launchd unit modes; the vendor payload marks the agent executable.
+    chmod 644 "$out/Library/LaunchAgents"/*.plist "$out/Library/LaunchDaemons"/*.plist
 
     # Official installer renames the channel directory from nochannel.
     if [ -d "$out/Applications/UURemote.app/Contents/Resources/channel/nochannel" ]; then

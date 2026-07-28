@@ -18,6 +18,9 @@ let
   cliSource = "${appPath}/Contents/Helpers/uuyc-cli";
   cliTarget = "/usr/local/bin/uuyc-cli";
   managedMarker = "${appPath}/.managed-by-nix-uuremote";
+  markerText = "managed by nix-darwin services.uuremote";
+  rsync = lib.getExe pkgs.rsync;
+  cmp = lib.getExe' pkgs.diffutils "cmp";
 in
 {
   options.services.uuremote = {
@@ -49,137 +52,239 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    assertions = [
+  config = {
+    assertions = lib.optionals cfg.enable [
       {
         assertion = pkgs.stdenv.hostPlatform.isDarwin;
         message = "services.uuremote is only supported on darwin";
       }
     ];
 
-    environment.systemPackages = lib.mkIf cfg.addToSystemPackages [ cfg.package ];
+    environment.systemPackages = lib.mkIf (cfg.enable && cfg.addToSystemPackages) [ cfg.package ];
 
-    system.activationScripts.extraActivation.text = lib.mkAfter ''
-      echo "setting up UU Remote..." >&2
+    system.activationScripts.extraActivation.text = lib.mkAfter (
+      if cfg.enable then
+        ''
+          echo "setting up UU Remote..." >&2
 
-      package=${lib.escapeShellArg cfg.package}
-      appPath=${lib.escapeShellArg appPath}
-      agentPlist=${lib.escapeShellArg agentPlist}
-      daemonPlist=${lib.escapeShellArg daemonPlist}
-      agentLabel=${lib.escapeShellArg agentLabel}
-      daemonLabel=${lib.escapeShellArg daemonLabel}
-      helperMain=${lib.escapeShellArg helperMain}
-      helperUpdater=${lib.escapeShellArg helperUpdater}
-      cliSource=${lib.escapeShellArg cliSource}
-      cliTarget=${lib.escapeShellArg cliTarget}
-      managedMarker=${lib.escapeShellArg managedMarker}
-      rsync=${lib.escapeShellArg (lib.getExe pkgs.rsync)}
+          package=${lib.escapeShellArg cfg.package}
+          appPath=${lib.escapeShellArg appPath}
+          agentPlist=${lib.escapeShellArg agentPlist}
+          daemonPlist=${lib.escapeShellArg daemonPlist}
+          agentLabel=${lib.escapeShellArg agentLabel}
+          daemonLabel=${lib.escapeShellArg daemonLabel}
+          helperMain=${lib.escapeShellArg helperMain}
+          helperUpdater=${lib.escapeShellArg helperUpdater}
+          cliSource=${lib.escapeShellArg cliSource}
+          cliTarget=${lib.escapeShellArg cliTarget}
+          managedMarker=${lib.escapeShellArg managedMarker}
+          markerText=${lib.escapeShellArg markerText}
+          rsync=${lib.escapeShellArg rsync}
+          cmp=${lib.escapeShellArg cmp}
 
-      getConsoleUser() {
-        local console_user
-        console_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk '/Name :/ && ! /loginwindow/ { print $3 }')
-        if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
-          console_user=$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || true)
-        fi
-        if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
-          console_user=$(/usr/bin/who | /usr/bin/awk '/console/ { print $1; exit }')
-        fi
-        printf '%s\n' "$console_user"
-      }
+          getConsoleUser() {
+            local console_user
+            console_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk '/Name :/ && ! /loginwindow/ { print $3 }')
+            if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
+              console_user=$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || true)
+            fi
+            if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
+              console_user=$(/usr/bin/who | /usr/bin/awk '/console/ { print $1; exit }')
+            fi
+            printf '%s\n' "$console_user"
+          }
 
-      stopService() {
-        local domain="$1"
-        local label="$2"
-        local plist="$3"
+          isManagedInstall() {
+            [ -f "$managedMarker" ] && [ ! -L "$managedMarker" ] \
+              && /usr/bin/grep -qxF "$markerText" "$managedMarker"
+          }
 
-        if [ -f "$plist" ]; then
-          /bin/launchctl bootout "$domain" "$plist" 2>/dev/null || true
-        fi
-        /bin/launchctl bootout "$domain/$label" 2>/dev/null || true
-      }
+          stopService() {
+            local domain="$1"
+            local label="$2"
+            local plist="$3"
 
-      startService() {
-        local domain="$1"
-        local label="$2"
-        local plist="$3"
+            if [ -f "$plist" ]; then
+              /bin/launchctl bootout "$domain" "$plist" 2>/dev/null || true
+            fi
+            /bin/launchctl bootout "$domain/$label" 2>/dev/null || true
+          }
 
-        /usr/sbin/chown root:wheel "$plist"
-        /bin/chmod 644 "$plist"
-        /bin/launchctl enable "$domain/$label" 2>/dev/null || true
-        /bin/launchctl bootstrap "$domain" "$plist"
-      }
+          startService() {
+            local domain="$1"
+            local label="$2"
+            local plist="$3"
 
-      setHelperPermissions() {
-        local helper_path="$1"
-        if [ -f "$helper_path" ]; then
-          /usr/sbin/chown root:wheel "$helper_path"
-          /bin/chmod 4755 "$helper_path"
-        fi
-      }
+            /usr/sbin/chown root:wheel "$plist"
+            /bin/chmod 644 "$plist"
+            /bin/launchctl enable "$domain/$label" 2>/dev/null || true
+            /bin/launchctl bootstrap "$domain" "$plist"
+          }
 
-      currentUser=$(getConsoleUser)
-      currentUid=""
-      if [ -n "$currentUser" ] && [ "$currentUser" != "root" ]; then
-        currentUid=$(/usr/bin/id -u "$currentUser" 2>/dev/null || true)
-      fi
+          setHelperPermissions() {
+            local helper_path="$1"
+            if [ -f "$helper_path" ]; then
+              /usr/sbin/chown root:wheel "$helper_path"
+              /bin/chmod 4755 "$helper_path"
+            fi
+          }
 
-      stopService system "$daemonLabel" "$daemonPlist"
-      if [ -n "$currentUid" ]; then
-        stopService "gui/$currentUid" "$agentLabel" "$agentPlist"
-        oldUserAgent="/Users/$currentUser/Library/LaunchAgents/com.netease.uuremote.plist"
-        if [ -f "$oldUserAgent" ]; then
-          /bin/launchctl bootout "gui/$currentUid" "$oldUserAgent" 2>/dev/null || true
-          /bin/rm -f "$oldUserAgent"
-        fi
-      fi
+          currentUser=$(getConsoleUser)
+          currentUid=""
+          if [ -n "$currentUser" ] && [ "$currentUser" != "root" ]; then
+            currentUid=$(/usr/bin/id -u "$currentUser" 2>/dev/null || true)
+          fi
 
-      /bin/mkdir -p /Applications /Library/LaunchAgents /Library/LaunchDaemons /usr/local/bin
+          /bin/mkdir -p /Applications /Library/LaunchAgents /Library/LaunchDaemons /usr/local/bin
 
-      if [ -L "$appPath" ]; then
-        /bin/rm "$appPath"
-      fi
-      if [ -e "$appPath" ]; then
-        /bin/chmod -R u+w "$appPath" 2>/dev/null || true
-      fi
-      /bin/mkdir -p "$appPath"
-      "$rsync" \
-        --archive \
-        --checksum \
-        --delete \
-        --copy-unsafe-links \
-        --chmod=-w \
-        --no-owner \
-        --no-group \
-        "$package/Applications/UURemote.app/" "$appPath/"
-      printf '%s\n' 'managed by nix-darwin services.uuremote' > "$managedMarker"
-      /usr/sbin/chown root:wheel "$managedMarker"
-      /bin/chmod 0644 "$managedMarker"
+          needsUpdate=0
+          if [ ! -d "$appPath" ] || [ -L "$appPath" ] || ! isManagedInstall; then
+            needsUpdate=1
+          elif ! "$rsync" -ani --delete --checksum \
+            "$package/Applications/UURemote.app/" "$appPath/" | /usr/bin/grep -q .; then
+            :
+          else
+            needsUpdate=1
+          fi
 
-      /bin/cp "$package/Library/LaunchAgents/${agentLabel}.plist" "$agentPlist"
-      /bin/cp "$package/Library/LaunchDaemons/${daemonLabel}.plist" "$daemonPlist"
+          if [ ! -f "$agentPlist" ] || ! "$cmp" -s \
+            "$package/Library/LaunchAgents/$agentLabel.plist" "$agentPlist"; then
+            needsUpdate=1
+          fi
+          if [ ! -f "$daemonPlist" ] || ! "$cmp" -s \
+            "$package/Library/LaunchDaemons/$daemonLabel.plist" "$daemonPlist"; then
+            needsUpdate=1
+          fi
 
-      setHelperPermissions "$helperMain"
-      setHelperPermissions "$helperUpdater"
+          if [ "$needsUpdate" -eq 1 ]; then
+            stopService system "$daemonLabel" "$daemonPlist"
+            if [ -n "$currentUid" ]; then
+              stopService "gui/$currentUid" "$agentLabel" "$agentPlist"
+            fi
 
-      /bin/rm -f /usr/local/bin/uuremote
-      /bin/ln -sfn "$cliSource" "$cliTarget"
+            if [ -L "$appPath" ]; then
+              /bin/rm "$appPath"
+            fi
+            if [ -e "$appPath" ]; then
+              /bin/chmod -R u+w "$appPath" 2>/dev/null || true
+            fi
+            /bin/mkdir -p "$appPath"
+            "$rsync" \
+              --archive \
+              --checksum \
+              --delete \
+              --copy-unsafe-links \
+              --chmod=-w \
+              --no-owner \
+              --no-group \
+              "$package/Applications/UURemote.app/" "$appPath/"
 
-      if [ -n "$currentUid" ]; then
-        startService "gui/$currentUid" "$agentLabel" "$agentPlist"
+            printf '%s\n' "$markerText" > "$managedMarker"
+            /usr/sbin/chown root:wheel "$managedMarker"
+            /bin/chmod 0644 "$managedMarker"
+
+            /bin/cp "$package/Library/LaunchAgents/$agentLabel.plist" "$agentPlist"
+            /bin/cp "$package/Library/LaunchDaemons/$daemonLabel.plist" "$daemonPlist"
+          fi
+
+          # Official postinstall always enforces these privileges.
+          setHelperPermissions "$helperMain"
+          setHelperPermissions "$helperUpdater"
+
+          if [ -n "$currentUid" ]; then
+            oldUserAgent="/Users/$currentUser/Library/LaunchAgents/com.netease.uuremote.plist"
+            if [ -f "$oldUserAgent" ]; then
+              /bin/launchctl bootout "gui/$currentUid" "$oldUserAgent" 2>/dev/null || true
+              /bin/rm -f "$oldUserAgent"
+            fi
+          fi
+
+          /bin/rm -f /usr/local/bin/uuremote
+          /bin/ln -sfn "$cliSource" "$cliTarget"
+
+          if [ -n "$currentUid" ]; then
+            if ! /bin/launchctl print "gui/$currentUid/$agentLabel" >/dev/null 2>&1 \
+              || [ "$needsUpdate" -eq 1 ]; then
+              startService "gui/$currentUid" "$agentLabel" "$agentPlist"
+            fi
+          else
+            echo "no console user; skipping UU Remote LaunchAgent bootstrap" >&2
+            /usr/sbin/chown root:wheel "$agentPlist"
+            /bin/chmod 644 "$agentPlist"
+          fi
+
+          if ! /bin/launchctl print "system/$daemonLabel" >/dev/null 2>&1 \
+            || [ "$needsUpdate" -eq 1 ]; then
+            startService system "$daemonLabel" "$daemonPlist"
+          fi
+
+          ${lib.optionalString cfg.openOnActivation ''
+            if [ -n "$currentUid" ] && [ -n "$currentUser" ]; then
+              /bin/launchctl asuser "$currentUid" /usr/bin/sudo -u "$currentUser" \
+                /usr/bin/open -b com.netease.uuremote --args -startup-by-installer \
+                >/dev/null 2>&1 || true
+            fi
+          ''}
+        ''
       else
-        echo "no console user; skipping UU Remote LaunchAgent bootstrap" >&2
-        /usr/sbin/chown root:wheel "$agentPlist"
-        /bin/chmod 644 "$agentPlist"
-      fi
-      startService system "$daemonLabel" "$daemonPlist"
+        ''
+          echo "removing managed UU Remote integration..." >&2
 
-      ${lib.optionalString cfg.openOnActivation ''
-        if [ -n "$currentUid" ] && [ -n "$currentUser" ]; then
-          /bin/launchctl asuser "$currentUid" /usr/bin/sudo -u "$currentUser" \
-            /usr/bin/open -b com.netease.uuremote --args -startup-by-installer \
-            >/dev/null 2>&1 || true
-        fi
-      ''}
-    '';
+          appPath=${lib.escapeShellArg appPath}
+          agentPlist=${lib.escapeShellArg agentPlist}
+          daemonPlist=${lib.escapeShellArg daemonPlist}
+          agentLabel=${lib.escapeShellArg agentLabel}
+          daemonLabel=${lib.escapeShellArg daemonLabel}
+          cliTarget=${lib.escapeShellArg cliTarget}
+          managedMarker=${lib.escapeShellArg managedMarker}
+          markerText=${lib.escapeShellArg markerText}
+
+          getConsoleUser() {
+            local console_user
+            console_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk '/Name :/ && ! /loginwindow/ { print $3 }')
+            if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
+              console_user=$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || true)
+            fi
+            if [ -z "$console_user" ] || [ "$console_user" = "root" ]; then
+              console_user=$(/usr/bin/who | /usr/bin/awk '/console/ { print $1; exit }')
+            fi
+            printf '%s\n' "$console_user"
+          }
+
+          isManagedInstall() {
+            [ -f "$managedMarker" ] && [ ! -L "$managedMarker" ] \
+              && /usr/bin/grep -qxF "$markerText" "$managedMarker"
+          }
+
+          if ! isManagedInstall; then
+            exit 0
+          fi
+
+          currentUser=$(getConsoleUser)
+          currentUid=""
+          if [ -n "$currentUser" ] && [ "$currentUser" != "root" ]; then
+            currentUid=$(/usr/bin/id -u "$currentUser" 2>/dev/null || true)
+          fi
+
+          if [ -f "$daemonPlist" ]; then
+            /bin/launchctl bootout system "$daemonPlist" 2>/dev/null || true
+          fi
+          /bin/launchctl bootout "system/$daemonLabel" 2>/dev/null || true
+          if [ -n "$currentUid" ]; then
+            if [ -f "$agentPlist" ]; then
+              /bin/launchctl bootout "gui/$currentUid" "$agentPlist" 2>/dev/null || true
+            fi
+            /bin/launchctl bootout "gui/$currentUid/$agentLabel" 2>/dev/null || true
+          fi
+
+          /bin/rm -f "$agentPlist" "$daemonPlist"
+          if [ -L "$cliTarget" ]; then
+            /bin/rm -f "$cliTarget"
+          fi
+          /bin/rm -f /usr/local/bin/uuremote
+          /bin/chmod -R u+w "$appPath" 2>/dev/null || true
+          /bin/rm -rf "$appPath"
+        ''
+    );
   };
 }
