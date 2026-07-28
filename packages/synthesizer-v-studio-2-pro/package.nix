@@ -76,7 +76,7 @@ stdenvNoCC.mkDerivation {
       }
     ];
     mainProgram = "synthv-studio-2-pro";
-    platforms = platforms.darwin;
+    platforms = [ "aarch64-darwin" ];
     sourceProvenance = [ sourceTypes.binaryNativeCode ];
   };
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update ChatGPT from OpenAI's official Sparkle appcasts."""
+"""Update ChatGPT (aarch64-darwin) from OpenAI's official Sparkle appcast."""
 
 from __future__ import annotations
 
@@ -15,11 +15,9 @@ from xml.etree import ElementTree
 
 ROOT = Path(__file__).parents[2]
 APPCAST_BASE_URL = "https://persistent.oaistatic.com/codex-app-prod"
+APPCAST_URL = f"{APPCAST_BASE_URL}/appcast.xml"
 SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
-APPCASTS = {
-    "arm64": f"{APPCAST_BASE_URL}/appcast.xml",
-    "x64": f"{APPCAST_BASE_URL}/appcast-x64.xml",
-}
+ARCH = "arm64"
 
 
 def run(command: list[str], *, capture: bool = False) -> str:
@@ -27,9 +25,9 @@ def run(command: list[str], *, capture: bool = False) -> str:
     return result.stdout if capture else ""
 
 
-def release_from_appcast(arch: str, appcast_url: str) -> tuple[str, str]:
+def latest_release() -> tuple[str, str]:
     request = urllib.request.Request(
-        appcast_url,
+        APPCAST_URL,
         headers={"User-Agent": "9bingyin-nur-packages-updater"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
@@ -37,27 +35,16 @@ def release_from_appcast(arch: str, appcast_url: str) -> tuple[str, str]:
 
     item = root.find("./channel/item")
     if item is None:
-        raise RuntimeError(f"{arch} appcast has no release item")
+        raise RuntimeError("ChatGPT appcast has no release item")
     version = item.findtext(f"{{{SPARKLE_NAMESPACE}}}shortVersionString")
     enclosure = item.find("enclosure")
     url = enclosure.get("url") if enclosure is not None else None
     if not isinstance(version, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", version):
-        raise RuntimeError(f"{arch} appcast has an invalid version")
-    expected_url = f"{APPCAST_BASE_URL}/ChatGPT-darwin-{arch}-{version}.zip"
+        raise RuntimeError("ChatGPT appcast has an invalid version")
+    expected_url = f"{APPCAST_BASE_URL}/ChatGPT-darwin-{ARCH}-{version}.zip"
     if url != expected_url:
-        raise RuntimeError(f"{arch} appcast has an unexpected download URL: {url!r}")
-    return version, url
-
-
-def latest_release() -> tuple[str, dict[str, str]]:
-    releases = {
-        arch: release_from_appcast(arch, appcast_url)
-        for arch, appcast_url in APPCASTS.items()
-    }
-    versions = {version for version, _url in releases.values()}
-    if len(versions) != 1:
-        raise RuntimeError(f"Appcasts report different versions: {sorted(versions)}")
-    return versions.pop(), {arch: url for arch, (_version, url) in releases.items()}
+        raise RuntimeError(f"ChatGPT appcast has an unexpected download URL: {url!r}")
+    return version, expected_url
 
 
 def prefetch_sri_hash(url: str) -> str:
@@ -79,7 +66,7 @@ def replace_once(text: str, pattern: str, replacement: str, error: str) -> str:
     return updated
 
 
-def update_package(version: str, urls: dict[str, str]) -> None:
+def update_package(version: str, url: str) -> None:
     package_path = ROOT / "packages/chatgpt/package.nix"
     text = package_path.read_text()
     text = replace_once(
@@ -88,20 +75,19 @@ def update_package(version: str, urls: dict[str, str]) -> None:
         f'  version = "{version}";',
         "Failed to update ChatGPT version",
     )
-    for arch, url in urls.items():
-        text = replace_once(
-            text,
-            rf'(arch = "{arch}";\n\s+hash = ")[^"]+(";)',
-            rf"\g<1>{prefetch_sri_hash(url)}\2",
-            f"Failed to update ChatGPT {arch} hash",
-        )
+    text = replace_once(
+        text,
+        r'(hash = ")[^"]+(";)',
+        rf"\g<1>{prefetch_sri_hash(url)}\2",
+        "Failed to update ChatGPT hash",
+    )
     package_path.write_text(text)
 
 
 def main() -> None:
     argparse.ArgumentParser(description=__doc__).parse_args()
-    version, urls = latest_release()
-    update_package(version, urls)
+    version, url = latest_release()
+    update_package(version, url)
 
 
 if __name__ == "__main__":

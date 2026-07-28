@@ -159,7 +159,7 @@ buildNpmPackage {
       }
     ];
     mainProgram = "sparkle";
-    platforms = platforms.darwin;
+    platforms = [ "aarch64-darwin" ];
     sourceProvenance = with sourceTypes; [
       fromSource
       binaryNativeCode
