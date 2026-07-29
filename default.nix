@@ -25,6 +25,9 @@ in
     mihomo-warp = ./modules/nixos/mihomo-warp.nix;
     usque = ./modules/nixos/usque.nix;
   };
+  homeModules = {
+    helium = ./modules/home/helium.nix;
+  };
   darwinModules = {
     sparkle = ./modules/darwin/sparkle.nix;
     synthesizer-v-studio-2-pro = ./modules/darwin/synthesizer-v-studio-2-pro.nix;
