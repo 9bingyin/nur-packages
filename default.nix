@@ -26,7 +26,7 @@ in
     usque = ./modules/nixos/usque.nix;
   };
   homeModules = {
-    helium = ./modules/home/helium.nix;
+    helium = ./modules/hm/helium.nix;
   };
   darwinModules = {
     sparkle = ./modules/darwin/sparkle.nix;

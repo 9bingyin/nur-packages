@@ -76,7 +76,7 @@
       };
 
       homeModules = {
-        helium = import ./modules/home/helium.nix;
+        helium = import ./modules/hm/helium.nix;
       };
 
       darwinModules = {
