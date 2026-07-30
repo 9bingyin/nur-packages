@@ -60,7 +60,7 @@ nix profile install github:9bingyin/nur-packages#helium
 
 ## 配置项
 
-模块会将 Helium Services 偏好写入指定 Chromium profile 的 `Preferences`，并保留文件中未由模块管理的其他偏好。
+模块会将 Helium Services 偏好写入指定 Chromium profile 的 `Preferences`，并保留文件中未由模块管理的其他偏好。默认扩展更新地址为当前 Helium Services origin 的 `/ext`；配置 `extensions` 时，`services.enable` 与 `services.extensionProxy` 必须同时开启。
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |

@@ -9,6 +9,12 @@ let
 
   cfg = config.programs.helium;
   configDirectory = "Library/Application Support/net.imput.helium";
+  heliumServicesOrigin =
+    if cfg.services.origin == null then
+      "https://services.helium.imput.net"
+    else
+      lib.removeSuffix "/" cfg.services.origin;
+  heliumExtensionUpdateUrl = "${heliumServicesOrigin}/ext";
   preferences = "${config.home.homeDirectory}/${configDirectory}/${cfg.profileDirectory}/Preferences";
   heliumPreferences = {
     helium.services = {
@@ -29,7 +35,8 @@ let
 
       updateUrl = mkOption {
         type = types.str;
-        default = "https://clients2.google.com/service/update2/crx";
+        default = heliumExtensionUpdateUrl;
+        defaultText = literalExpression "\"${heliumExtensionUpdateUrl}\"";
         description = "URL of the extension update manifest.";
       };
 
@@ -174,6 +181,10 @@ in
       {
         assertion = builtins.all (ext: ext.crxPath != null -> ext.version != null) cfg.extensions;
         message = "programs.helium.extensions requires version when crxPath is set.";
+      }
+      {
+        assertion = cfg.extensions == [ ] || (cfg.services.enable && cfg.services.extensionProxy);
+        message = "programs.helium.extensions requires services.enable and services.extensionProxy.";
       }
     ];
 
