@@ -17,13 +17,13 @@
 }:
 let
   pname = "sparkle";
-  version = "1.26.6";
+  version = "1.26.7";
 
   src = fetchFromGitHub {
     owner = "xishang0128";
     repo = "sparkle";
     tag = version;
-    hash = "sha256-IFK7rhT3i+Qct0FIEYFbgQpJ5cjS7JMKd2tmOq5ZSNg=";
+    hash = "sha256-R9FVlt0rLxgIpeIJbwoIIYPmpP3LKoRWyt7u4ohbN4E=";
   };
 
   resources = stdenvNoCC.mkDerivation {
@@ -32,7 +32,7 @@ let
 
     src = fetchurl {
       url = "https://github.com/xishang0128/sparkle/releases/download/${version}/sparkle-macos-${version}-arm64.pkg";
-      hash = "sha256-rED86lxwDgURj7ZIk5UKyaQstEhfRNdJkdbfcx/ic18=";
+      hash = "sha256-DWgF0kPT/FzhAi2q4cWmG7v8reOc0VXcqFo1X82htzc=";
     };
 
     nativeBuildInputs = [
@@ -77,7 +77,7 @@ let
       pnpm
       ;
     fetcherVersion = 4;
-    hash = "sha256-+OHO0Rvp33QUDRFjKwDpaIzdciwbsjEwoQxmqd4TouA=";
+    hash = "sha256-hSozWInESlJhEjNKbVLgRJG+G7dFgFb+834rugHh05c=";
   };
 in
 buildNpmPackage {
