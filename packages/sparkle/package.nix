@@ -6,8 +6,9 @@
   fetchPnpmDeps,
   fetchurl,
   cpio,
-  electron_42,
+  electron_43,
   gzip,
+  jq,
   makeWrapper,
   nodejs_26,
   pnpmConfigHook,
@@ -96,12 +97,16 @@ buildNpmPackage {
   };
 
   nativeBuildInputs = [
+    jq
     makeWrapper
     pnpm
     rcodesign
   ];
 
   postPatch = ''
+    RELEASE_VERSION=${lib.escapeShellArg version}
+    jq --arg version "$RELEASE_VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
+
     mkdir -p extra
     cp -R ${resources}/* extra/
   '';
@@ -109,14 +114,14 @@ buildNpmPackage {
   buildPhase = ''
     runHook preBuild
 
-    cp -R ${electron_42.dist} electron-dist
+    cp -R ${electron_43.dist} electron-dist
     chmod -R u+w electron-dist
 
     pnpm exec electron-vite build
     pnpm exec electron-builder \
       --dir \
       -c.electronDist=electron-dist \
-      -c.electronVersion=${electron_42.version} \
+      -c.electronVersion=${electron_43.version} \
       -c.mac.identity=null \
       -c.npmRebuild=false
 
@@ -141,7 +146,7 @@ buildNpmPackage {
   doInstallCheck = true;
   installCheckPhase = ''
     test -x "$out/Applications/Sparkle.app/Contents/MacOS/Sparkle"
-    test ! -L "$out/bin/sparkle"
+    test -x "$out/bin/sparkle"
   '';
 
   passthru = {
