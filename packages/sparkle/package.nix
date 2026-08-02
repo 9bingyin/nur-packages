@@ -33,7 +33,7 @@ let
 
     src = fetchurl {
       url = "https://github.com/xishang0128/sparkle/releases/download/${version}/sparkle-macos-${version}-arm64.pkg";
-      hash = "sha256-DWgF0kPT/FzhAi2q4cWmG7v8reOc0VXcqFo1X82htzc=";
+      hash = "sha256-ic/cTIFt0q4rg/fvfJ48hIQwIGtBXhHxTMtwqqId0wU=";
     };
 
     nativeBuildInputs = [
