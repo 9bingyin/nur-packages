@@ -7,16 +7,16 @@
 
 rustPlatform.buildRustPackage rec {
   pname = "herdr-file-viewer";
-  version = "1.14.0";
+  version = "1.15.0";
 
   src = fetchFromGitHub {
     owner = "smarzban";
     repo = "herdr-file-viewer";
     rev = "v${version}";
-    hash = "sha256-QJM/w1m7j8B433/klHRCRbJKL51/5tkyp7swm0xG3zE=";
+    hash = "sha256-tgy5IHCXqDkIojsP9cDyCG/JXStbjdDdDILopa3SkLI=";
   };
 
-  cargoHash = "sha256-ZzGvgemjSKUBFr1I6tzgtKopNVQyOsregU51PrV3/rY=";
+  cargoHash = "sha256-olRYqVTq21A9nkeyy7jGi21OFxcylhQKNfsy6jdO4Ko=";
 
   nativeCheckInputs = [ git ];
 
