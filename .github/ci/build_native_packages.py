@@ -14,9 +14,9 @@ import urllib.request
 from pathlib import Path
 
 NIKS3_AUDIENCE = "https://niks3.bingyin.org"
-# nix-eval-jobs 2.35.0 hangs with --check-cache-status; remove after upstream #430 is fixed.
-NIX_EVAL_JOBS_INPUT = (
-    "github:NixOS/nixpkgs/104240a772428cc2e20d8fd86c9ddbb886bbaff2#nix-eval-jobs"
+# The wrapper bundles nix-eval-jobs; pin it until upstream issue #430 is fixed.
+NIX_FAST_BUILD_INPUT = (
+    "github:NixOS/nixpkgs/104240a772428cc2e20d8fd86c9ddbb886bbaff2#nix-fast-build"
 )
 
 
@@ -74,15 +74,12 @@ def main() -> None:
                 [
                     "nix",
                     "shell",
-                    NIX_EVAL_JOBS_INPUT,
-                    "nixpkgs#nix-fast-build",
+                    NIX_FAST_BUILD_INPUT,
                     "nixpkgs#niks3",
                     "-c",
                     "nix-fast-build",
                     "--flake",
                     f".#packages.{system}",
-                    "--nix-eval-jobs",
-                    "nix-eval-jobs",
                     "--select",
                     'packages: builtins.removeAttrs packages [ "default" "formatter" ]',
                     "--systems",
