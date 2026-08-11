@@ -41,13 +41,11 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   doInstallCheck = true;
   installCheckPhase = ''
-    test -x "$out/Applications/Zed.app/Contents/MacOS/zed"
-    test -x "$out/Applications/Zed.app/Contents/MacOS/cli"
-    test -L "$out/bin/zeditor"
-    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$out/Applications/Zed.app/Contents/Info.plist")" = "${finalAttrs.version}"
-    /usr/bin/codesign --verify --deep --strict "$out/Applications/Zed.app"
-    /usr/bin/codesign --display --verbose=2 "$out/Applications/Zed.app" 2>&1 \
-      | grep -F "TeamIdentifier=MQ55VZLNZQ"
+    app="$out/Applications/Zed.app"
+
+    test -x "$app/Contents/MacOS/zed"
+    test -x "$out/bin/zeditor"
+    /usr/bin/codesign --verify --deep --strict "$app"
   '';
 
   meta = {

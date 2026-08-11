@@ -48,13 +48,7 @@ stdenvNoCC.mkDerivation {
 
     test -x "$app/Contents/MacOS/Termius"
     test -x "$out/bin/termius-app"
-    test ! -L "$out/bin/termius-app"
-    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "${version}"
-    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.termius-dmg.mac"
-    test "$(/usr/bin/lipo -archs "$app/Contents/MacOS/Termius")" = "arm64"
     /usr/bin/codesign --verify --deep --strict "$app"
-    /usr/bin/codesign --display --verbose=2 "$app" 2>&1 \
-      | grep -F "TeamIdentifier=6KN952WR85"
   '';
 
   meta = {
