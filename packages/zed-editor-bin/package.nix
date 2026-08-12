@@ -6,11 +6,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "zed-editor-bin";
-  version = "1.14.2";
+  version = "1.15.0";
 
   src = fetchurl {
     url = "https://github.com/zed-industries/zed/releases/download/v${finalAttrs.version}/Zed-aarch64.dmg";
-    hash = "sha256-+d9QH0McDiugKPtvNk1jMvLTFGQXWhHWVn4/WZkP4NI=";
+    hash = "sha256-Zw/bNjHbrNAwS3xSn6sM2cTdUSHmB32cSDDHxfxlEXk=";
   };
 
   dontUnpack = true;
