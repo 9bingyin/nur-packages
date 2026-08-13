@@ -23,14 +23,28 @@ let
 in
   builtins.mapAttrs (_: pkg: if shouldDiscover pkg then pkg.version else null) pkgs
 """
+GROUP_SPECS = (
+    ("linux-x86", "x86_64-linux", "package"),
+    ("linux-arm", "aarch64-linux", "package"),
+    ("darwin-arm", "aarch64-darwin", "package"),
+    ("linux-flake-input", "x86_64-linux", "flake-input"),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Target:
+    current_version: str
+    name: str
+    system: str
+    type: str
 
 
 @dataclass(frozen=True, slots=True)
 class MatrixItem:
-    current_version: str
-    name: str
+    group: str
     runner: str
     system: str
+    targets: list[dict[str, str]]
     type: str
 
 
@@ -63,8 +77,8 @@ def automatic_updates_disabled(name: str) -> bool:
     return (Path("packages") / name / MANUAL_UPDATE_MARKER).is_file()
 
 
-def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
-    discovered: dict[str, MatrixItem] = {}
+def discover_packages(package_filter: list[str] | None) -> list[Target]:
+    discovered: dict[str, Target] = {}
     disabled: set[str] = set()
     for system in PACKAGE_SYSTEMS:
         for name, version in package_versions(system).items():
@@ -74,10 +88,9 @@ def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
             if package_filter is None or name in package_filter:
                 discovered.setdefault(
                     name,
-                    MatrixItem(
+                    Target(
                         current_version=version,
                         name=name,
-                        runner=NATIVE_RUNNERS[system],
                         system=system,
                         type="package",
                     ),
@@ -91,7 +104,7 @@ def discover_packages(package_filter: list[str] | None) -> list[MatrixItem]:
     return sorted(discovered.values(), key=lambda item: item.name)
 
 
-def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
+def discover_flake_inputs(input_filter: list[str] | None) -> list[Target]:
     lock_path = Path("flake.lock")
     if not lock_path.exists():
         return []
@@ -108,7 +121,7 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
         raise RuntimeError("flake.lock has no root inputs")
 
     names = input_filter or sorted(root_inputs)
-    items: list[MatrixItem] = []
+    items: list[Target] = []
     for name in names:
         node = nodes.get(name)
         locked = node.get("locked") if isinstance(node, dict) else None
@@ -118,10 +131,9 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
             else None
         )
         items.append(
-            MatrixItem(
+            Target(
                 current_version=str(revision)[:8] if revision is not None else "unknown",
                 name=name,
-                runner=NATIVE_RUNNERS["x86_64-linux"],
                 system="x86_64-linux",
                 type="flake-input",
             )
@@ -129,15 +141,43 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[MatrixItem]:
     return items
 
 
+def encode_targets(items: list[Target]) -> list[dict[str, str]]:
+    return [{"current_version": item.current_version, "name": item.name} for item in items]
+
+
+def build_matrix(
+    packages: list[Target], flake_inputs: list[Target]
+) -> dict[str, list[dict[str, object]]]:
+    include: list[dict[str, object]] = []
+    for group, system, update_type in GROUP_SPECS:
+        items = [
+            item
+            for item in (packages if update_type == "package" else flake_inputs)
+            if item.system == system and item.type == update_type
+        ]
+        if not items:
+            continue
+        include.append(
+            asdict(
+                MatrixItem(
+                    group=group,
+                    runner=NATIVE_RUNNERS[system],
+                    system=system,
+                    targets=encode_targets(items),
+                    type=update_type,
+                )
+            )
+        )
+    return {"include": include}
+
+
 def main() -> None:
     package_filter = split_filter(os.environ.get("PACKAGES", ""))
     input_filter = split_filter(os.environ.get("INPUTS", ""))
-    matrix = {
-        "include": [
-            *(asdict(item) for item in discover_packages(package_filter)),
-            *(asdict(item) for item in discover_flake_inputs(input_filter)),
-        ]
-    }
+    matrix = build_matrix(
+        discover_packages(package_filter),
+        discover_flake_inputs(input_filter),
+    )
     print(json.dumps(matrix, indent=2))
     write_output("matrix", json.dumps(matrix, separators=(",", ":")))
     write_output("has-updates", str(bool(matrix["include"])).lower())

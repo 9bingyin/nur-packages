@@ -53,6 +53,7 @@ jobs:
   update:
     needs: discover
     if: needs.discover.outputs.has-updates == 'true'
+    name: ${{ matrix.group }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
@@ -82,31 +83,19 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Prepare update branch
+      - name: Update targets
         env:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
-        run: ./.github/ci/prepare_update_branch.py "${{ matrix.type }}" "${{ matrix.name }}"
-      - name: Update target
-        id: update
-        env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           INTERNET_ARCHIVE_ACCESS_KEY: ${{ secrets.INTERNET_ARCHIVE_ACCESS_KEY }}
           INTERNET_ARCHIVE_SECRET_KEY: ${{ secrets.INTERNET_ARCHIVE_SECRET_KEY }}
           NIXPKGS_ALLOW_UNFREE: "1"
           NIX_UPDATE_SYSTEM: ${{ matrix.system }}
-        run: ./.github/ci/update.py "${{ matrix.type }}" "${{ matrix.name }}"
-      - name: Create pull request
-        if: steps.update.outputs.updated == 'true'
-        env:
-          BASE_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_LABELS: ${{ inputs.pr-labels }}
-        run: >-
-          ./.github/ci/create_pr.py
-          "${{ matrix.type }}"
-          "${{ matrix.name }}"
-          "${{ matrix.current_version }}"
-          "${{ steps.update.outputs.new_version }}"
+          UPDATE_TARGETS: ${{ toJSON(matrix.targets) }}
+          UPDATE_TYPE: ${{ matrix.type }}
+        run: ./.github/ci/update.py
 
   summary:
     needs: [discover, update]
