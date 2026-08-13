@@ -16,13 +16,19 @@ from pathlib import Path
 ROOT = Path(__file__).parents[2]
 RELEASE_URL = "https://api.github.com/repos/imputnet/helium-macos/releases/latest"
 USER_AGENT = "9bingyin-nur-packages-updater"
-GITHUB_HEADERS = {
-    "Accept": "application/vnd.github+json",
-    "User-Agent": USER_AGENT,
-}
 
-if github_token := os.environ.get("GITHUB_TOKEN"):
-    GITHUB_HEADERS["Authorization"] = f"Bearer {github_token}"
+
+def github_headers() -> dict[str, str]:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": USER_AGENT,
+    }
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    elif os.environ.get("GITHUB_ACTIONS"):
+        raise RuntimeError("GITHUB_TOKEN must be set in CI")
+    return headers
 
 
 def run(command: list[str], *, capture: bool = False) -> str:
@@ -33,7 +39,7 @@ def run(command: list[str], *, capture: bool = False) -> str:
 def latest_release() -> tuple[str, str]:
     request = urllib.request.Request(
         RELEASE_URL,
-        headers=GITHUB_HEADERS,
+        headers=github_headers(),
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         release: object = json.load(response)

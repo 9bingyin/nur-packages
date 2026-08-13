@@ -21,6 +21,10 @@ on:
     secrets:
       AUTOMATION_APP_PRIVATE_KEY:
         required: true
+      INTERNET_ARCHIVE_ACCESS_KEY:
+        required: true
+      INTERNET_ARCHIVE_SECRET_KEY:
+        required: true
 
 permissions:
   contents: read
@@ -86,6 +90,8 @@ jobs:
         id: update
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          INTERNET_ARCHIVE_ACCESS_KEY: ${{ secrets.INTERNET_ARCHIVE_ACCESS_KEY }}
+          INTERNET_ARCHIVE_SECRET_KEY: ${{ secrets.INTERNET_ARCHIVE_SECRET_KEY }}
           NIXPKGS_ALLOW_UNFREE: "1"
           NIX_UPDATE_SYSTEM: ${{ matrix.system }}
         run: ./.github/ci/update.py "${{ matrix.type }}" "${{ matrix.name }}"

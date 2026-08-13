@@ -7,23 +7,26 @@ import argparse
 import base64
 import binascii
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import TypeGuard, cast
 
 ROOT = Path(__file__).parents[2]
 APPCAST_URL = "https://autoupdate.termius.com/mac-arm64/latest-mac.yml"
 SOURCE_URL = "https://autoupdate.termius.com/mac-arm64/Termius.zip"
-WAYBACK_SAVE_URL = f"https://web.archive.org/save/{SOURCE_URL}"
+SPN2_SAVE_URL = "https://web.archive.org/save"
+SPN2_STATUS_URL = "https://web.archive.org/save/status"
 USER_AGENT = "9bingyin-nur-packages-updater"
-
-
-class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
-        return None
+HTTP_RETRY_STATUSES = {429, 503}
+MAX_HTTP_RETRIES = 4
+CAPTURE_TIMEOUT_SECONDS = 600
 
 
 def run(command: list[str]) -> str:
@@ -33,6 +36,23 @@ def run(command: list[str]) -> str:
         text=True,
         capture_output=True,
     ).stdout
+
+
+def required_environment(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} must be set")
+    return value
+
+
+def archive_headers() -> dict[str, str]:
+    access_key = required_environment("INTERNET_ARCHIVE_ACCESS_KEY")
+    secret_key = required_environment("INTERNET_ARCHIVE_SECRET_KEY")
+    return {
+        "Accept": "application/json",
+        "Authorization": f"LOW {access_key}:{secret_key}",
+        "User-Agent": USER_AGENT,
+    }
 
 
 def read_url(url: str, *, timeout: int = 30) -> str:
@@ -84,41 +104,114 @@ def timestamp_from_url(url: str) -> str:
     return match.group(1)
 
 
-def save_snapshot() -> str:
-    request = urllib.request.Request(
-        WAYBACK_SAVE_URL,
-        headers={"User-Agent": USER_AGENT},
+def is_string_mapping(value: object) -> TypeGuard[dict[str, object]]:
+    return isinstance(value, dict) and all(
+        isinstance(key, str) for key in cast(dict[object, object], value)
     )
-    opener = urllib.request.build_opener(NoRedirectHandler())
+
+
+def json_object(raw: bytes) -> dict[str, object]:
+    payload: object = json.loads(raw.decode())
+    if not is_string_mapping(payload):
+        raise RuntimeError("Wayback Machine returned a non-object JSON payload")
+    return payload
+
+
+def retry_after_seconds(error: urllib.error.HTTPError, default: float) -> float:
+    raw = error.headers.get("Retry-After")
+    if raw is None:
+        return default
     try:
-        opener.open(request, timeout=600)
-    except urllib.error.HTTPError as error:
-        if error.code not in (301, 302, 303, 307, 308):
-            raise
-        location = error.headers.get("Location")
-    else:
-        raise RuntimeError("Wayback Machine did not return a snapshot redirect")
+        return max(default, float(raw))
+    except ValueError:
+        return default
 
-    if not isinstance(location, str):
-        raise RuntimeError("Wayback Machine returned no snapshot URL")
 
-    candidate = timestamp_from_url(location)
+def request_json(
+    url: str,
+    *,
+    data: bytes | None = None,
+    timeout: int,
+) -> dict[str, object]:
+    headers = archive_headers()
+    if data is not None:
+        headers["Content-Type"] = "application/x-www-form-urlencoded;charset=UTF-8"
     request = urllib.request.Request(
-        wayback_url(candidate),
-        headers={"User-Agent": USER_AGENT},
-        method="HEAD",
+        url,
+        data=data,
+        headers=headers,
+        method="POST" if data is not None else "GET",
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return timestamp_from_url(response.geturl())
+    delay = 5.0
+    for attempt in range(MAX_HTTP_RETRIES):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json_object(response.read())
+        except urllib.error.HTTPError as error:
+            error.read()
+            if error.code not in HTTP_RETRY_STATUSES or attempt == MAX_HTTP_RETRIES - 1:
+                raise
+            time.sleep(retry_after_seconds(error, delay))
+            delay = min(delay * 2, 60.0)
+    raise RuntimeError(f"Wayback Machine request failed: {url}")
+
+
+def string_field(payload: dict[str, object], key: str, error: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value:
+        raise RuntimeError(error)
+    return value
+
+
+def save_snapshot() -> str:
+    capture = request_json(
+        SPN2_SAVE_URL,
+        data=urllib.parse.urlencode(
+            {
+                "url": SOURCE_URL,
+                "force_get": "1",
+                "skip_first_archive": "1",
+                "js_behavior_timeout": "0",
+            }
+        ).encode(),
+        timeout=60,
+    )
+    job_id = string_field(capture, "job_id", "Wayback Machine returned no capture job id")
+
+    deadline = time.monotonic() + CAPTURE_TIMEOUT_SECONDS
+    delay = 5.0
+    while time.monotonic() < deadline:
+        time.sleep(delay)
+        status = request_json(f"{SPN2_STATUS_URL}/{job_id}", timeout=60)
+        state = status.get("status")
+        if state == "success":
+            timestamp = string_field(
+                status,
+                "timestamp",
+                "Wayback Machine returned no capture timestamp",
+            )
+            if re.fullmatch(r"[0-9]{14}", timestamp) is None:
+                raise RuntimeError(
+                    f"Wayback Machine returned an invalid timestamp: {timestamp!r}"
+                )
+            request = urllib.request.Request(
+                wayback_url(timestamp),
+                headers={"User-Agent": USER_AGENT},
+                method="HEAD",
+            )
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return timestamp_from_url(response.geturl())
+        if state == "error":
+            message = status.get("message") or status.get("status_ext") or "unknown error"
+            raise RuntimeError(f"Wayback Machine capture failed: {message}")
+        delay = min(delay * 1.5, 20.0)
+    raise RuntimeError("Wayback Machine capture timed out")
 
 
 def archive_hash(timestamp: str) -> str:
-    payload: object = json.loads(
-        run(["nix", "store", "prefetch-file", "--json", wayback_url(timestamp)])
+    payload = json_object(
+        run(["nix", "store", "prefetch-file", "--json", wayback_url(timestamp)]).encode()
     )
-    if not isinstance(payload, dict):
-        raise RuntimeError("nix store prefetch-file returned an invalid payload")
-
     store_path = payload.get("storePath")
     if not isinstance(store_path, str):
         raise RuntimeError("nix store prefetch-file returned no store path")

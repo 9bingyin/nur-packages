@@ -17,13 +17,7 @@ from pathlib import Path
 from typing import TypeGuard, cast
 
 ROOT = Path(__file__).parents[2]
-GITHUB_HEADERS = {
-    "Accept": "application/vnd.github+json",
-    "User-Agent": "9bingyin-nur-packages-updater",
-}
-
-if github_token := os.environ.get("GITHUB_TOKEN"):
-    GITHUB_HEADERS["Authorization"] = f"Bearer {github_token}"
+USER_AGENT = "9bingyin-nur-packages-updater"
 
 
 def is_string_mapping(value: object) -> TypeGuard[dict[str, object]]:
@@ -36,6 +30,19 @@ def is_object_list(value: object) -> TypeGuard[list[object]]:
     return isinstance(value, list)
 
 
+def github_headers() -> dict[str, str]:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": USER_AGENT,
+    }
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    elif os.environ.get("GITHUB_ACTIONS"):
+        raise RuntimeError("GITHUB_TOKEN must be set in CI")
+    return headers
+
+
 def run(command: Sequence[str], *, capture: bool = False) -> str:
     result = subprocess.run(command, check=True, text=True, capture_output=capture)
     return result.stdout if capture else ""
@@ -45,7 +52,7 @@ def latest_version() -> str:
     request = urllib.request.Request(
         "https://api.github.com/repos/longbridge/longbridge-desktop-website/"
         "contents/docs/release-notes",
-        headers=GITHUB_HEADERS,
+        headers=github_headers(),
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         payload: object = json.load(response)
@@ -77,7 +84,9 @@ def latest_version() -> str:
         for suffix in suffixes:
             try:
                 request = urllib.request.Request(
-                    f"{base_url}-{suffix}", headers=GITHUB_HEADERS, method="HEAD"
+                    f"{base_url}-{suffix}",
+                    headers={"User-Agent": USER_AGENT},
+                    method="HEAD",
                 )
                 with urllib.request.urlopen(request, timeout=30) as response:
                     if response.status != 200:

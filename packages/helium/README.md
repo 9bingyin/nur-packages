@@ -135,4 +135,4 @@ python3 packages/helium/update.py
 nix fmt
 ```
 
-脚本从 Helium macOS 最新 GitHub Release 获取版本和 ARM64 DMG 的固定哈希。若 GitHub API 限流，可设置 `GITHUB_TOKEN` 后再运行。
+脚本从 Helium macOS 最新 GitHub Release 获取版本和 ARM64 DMG 的固定哈希。CI 必须设置 `GITHUB_TOKEN`。本地运行时设置该变量，可避免匿名限流。
