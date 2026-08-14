@@ -1,15 +1,6 @@
 {
   description = "9bingyin's NUR package repository";
 
-  nixConfig = {
-    extra-substituters = [
-      "https://cache.bingyin.org"
-    ];
-    extra-trusted-public-keys = [
-      "cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI="
-    ];
-  };
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     systems.url = "github:nix-systems/default";
