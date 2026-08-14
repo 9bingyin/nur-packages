@@ -61,11 +61,15 @@ def package_versions(system: str) -> dict[str, str]:
         env={"DISCOVERY_CONFIG": json.dumps({"system": system})},
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to discover packages for {system}:\n{result.stderr}")
+        raise RuntimeError(
+            f"Failed to discover packages for {system}:\n{result.stderr}"
+        )
 
     payload: object = json.loads(result.stdout)
     if not isinstance(payload, dict):
-        raise RuntimeError(f"Package discovery for {system} returned a non-object JSON value")
+        raise RuntimeError(
+            f"Package discovery for {system} returned a non-object JSON value"
+        )
     return {
         name: version
         for name, version in payload.items()
@@ -132,7 +136,9 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[Target]:
         )
         items.append(
             Target(
-                current_version=str(revision)[:8] if revision is not None else "unknown",
+                current_version=str(revision)[:8]
+                if revision is not None
+                else "unknown",
                 name=name,
                 system="x86_64-linux",
                 type="flake-input",
@@ -142,7 +148,9 @@ def discover_flake_inputs(input_filter: list[str] | None) -> list[Target]:
 
 
 def encode_targets(items: list[Target]) -> list[dict[str, str]]:
-    return [{"current_version": item.current_version, "name": item.name} for item in items]
+    return [
+        {"current_version": item.current_version, "name": item.name} for item in items
+    ]
 
 
 def build_matrix(

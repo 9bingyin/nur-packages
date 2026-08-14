@@ -7,7 +7,6 @@ let
 
   reservedPackageDirs = [
     "default"
-    "formatter"
   ];
 
   packageDirs = lib.filterAttrs (

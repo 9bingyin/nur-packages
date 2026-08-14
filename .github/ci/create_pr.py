@@ -28,7 +28,9 @@ def build_pull_request(
     branch = f"automation/update-{update_type}-{name}"
     if update_type == "package":
         title = f"{name}: {current_version} -> {new_version}"
-        body = f"Automated update of `{name}` from `{current_version}` to `{new_version}`."
+        body = (
+            f"Automated update of `{name}` from `{current_version}` to `{new_version}`."
+        )
     else:
         title = f"flake.lock: update {name}"
         body = f"Automated update of flake input `{name}` from `{current_version}` to `{new_version}`."
@@ -37,7 +39,17 @@ def build_pull_request(
 
 def pull_request_number(branch: str) -> str | None:
     result = run(
-        ["gh", "pr", "list", "--head", branch, "--json", "number", "--jq", ".[0].number // empty"],
+        [
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--json",
+            "number",
+            "--jq",
+            ".[0].number // empty",
+        ],
         capture=True,
     )
     return result.stdout.strip() or None
@@ -61,7 +73,18 @@ def create_or_update(pull_request: PullRequest) -> str:
 
     number = pull_request_number(pull_request.branch)
     if number is not None:
-        run(["gh", "pr", "edit", number, "--title", pull_request.title, "--body", pull_request.body])
+        run(
+            [
+                "gh",
+                "pr",
+                "edit",
+                number,
+                "--title",
+                pull_request.title,
+                "--body",
+                pull_request.body,
+            ]
+        )
         return number
 
     run(

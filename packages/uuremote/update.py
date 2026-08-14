@@ -57,7 +57,9 @@ def prefetch_sri_hash(url: str) -> str:
         run(["nix", "store", "prefetch-file", "--json", url], capture=True)
     )
     if not isinstance(payload, dict):
-        raise RuntimeError(f"nix store prefetch-file returned an invalid payload for {url}")
+        raise RuntimeError(
+            f"nix store prefetch-file returned an invalid payload for {url}"
+        )
     hash_value = payload.get("hash")
     if not isinstance(hash_value, str):
         raise RuntimeError(f"nix store prefetch-file returned no hash for {url}")

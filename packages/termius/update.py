@@ -76,7 +76,9 @@ def latest_release() -> tuple[str, str]:
     for index, line in enumerate(lines[:-1]):
         if re.fullmatch(r"\s*-\s+url:\s*Termius\.zip\s*", line) is None:
             continue
-        match = re.fullmatch(r"\s+sha512:\s*([A-Za-z0-9+/]+={0,2})\s*", lines[index + 1])
+        match = re.fullmatch(
+            r"\s+sha512:\s*([A-Za-z0-9+/]+={0,2})\s*", lines[index + 1]
+        )
         if match is not None:
             digests.append(match.group(1))
 
@@ -86,7 +88,9 @@ def latest_release() -> tuple[str, str]:
     try:
         digest = base64.b64decode(digests[0], validate=True)
     except binascii.Error as error:
-        raise RuntimeError("Termius appcast has an invalid ZIP SHA-512 digest") from error
+        raise RuntimeError(
+            "Termius appcast has an invalid ZIP SHA-512 digest"
+        ) from error
     if len(digest) != 64:
         raise RuntimeError("Termius appcast has an invalid ZIP SHA-512 digest")
 
@@ -176,7 +180,9 @@ def save_snapshot() -> str:
         ).encode(),
         timeout=60,
     )
-    job_id = string_field(capture, "job_id", "Wayback Machine returned no capture job id")
+    job_id = string_field(
+        capture, "job_id", "Wayback Machine returned no capture job id"
+    )
 
     deadline = time.monotonic() + CAPTURE_TIMEOUT_SECONDS
     delay = 5.0
@@ -202,7 +208,9 @@ def save_snapshot() -> str:
             with urllib.request.urlopen(request, timeout=120) as response:
                 return timestamp_from_url(response.geturl())
         if state == "error":
-            message = status.get("message") or status.get("status_ext") or "unknown error"
+            message = (
+                status.get("message") or status.get("status_ext") or "unknown error"
+            )
             raise RuntimeError(f"Wayback Machine capture failed: {message}")
         delay = min(delay * 1.5, 20.0)
     raise RuntimeError("Wayback Machine capture timed out")
@@ -210,15 +218,15 @@ def save_snapshot() -> str:
 
 def archive_hash(timestamp: str) -> str:
     payload = json_object(
-        run(["nix", "store", "prefetch-file", "--json", wayback_url(timestamp)]).encode()
+        run(
+            ["nix", "store", "prefetch-file", "--json", wayback_url(timestamp)]
+        ).encode()
     )
     store_path = payload.get("storePath")
     if not isinstance(store_path, str):
         raise RuntimeError("nix store prefetch-file returned no store path")
 
-    return run(
-        ["nix", "hash", "file", "--type", "sha512", "--sri", store_path]
-    ).strip()
+    return run(["nix", "hash", "file", "--type", "sha512", "--sri", store_path]).strip()
 
 
 def unique_match(text: str, pattern: str, error: str) -> re.Match[str]:

@@ -57,7 +57,9 @@ def latest_version() -> str:
     with urllib.request.urlopen(request, timeout=30) as response:
         payload: object = json.load(response)
     if not is_object_list(payload):
-        raise RuntimeError("Longbridge release notes API returned an unexpected payload")
+        raise RuntimeError(
+            "Longbridge release notes API returned an unexpected payload"
+        )
 
     versions: set[str] = set()
     for raw_entry in payload:
@@ -103,7 +105,9 @@ def prefetch_sri_hash(url: str) -> str:
         run(["nix", "store", "prefetch-file", "--json", url], capture=True)
     )
     if not is_string_mapping(payload):
-        raise RuntimeError(f"nix store prefetch-file returned an invalid payload for {url}")
+        raise RuntimeError(
+            f"nix store prefetch-file returned an invalid payload for {url}"
+        )
     hash_value = payload.get("hash")
     if not isinstance(hash_value, str):
         raise RuntimeError(f"nix store prefetch-file returned no hash for {url}")

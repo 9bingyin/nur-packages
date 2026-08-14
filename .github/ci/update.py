@@ -152,7 +152,12 @@ def update_group(update_type: str, system: str) -> None:
     for name, current_version in parse_targets(raw_targets):
         try:
             process_target(update_type, name, current_version, system)
-        except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:
+        except (
+            OSError,
+            RuntimeError,
+            ValueError,
+            subprocess.CalledProcessError,
+        ) as error:
             failed.append(name)
             print(f"::error::{name} update failed: {error}")
             reset_worktree()

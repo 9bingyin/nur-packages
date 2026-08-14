@@ -52,7 +52,9 @@ def label_names(pull_request: dict[str, object]) -> set[str]:
     }
 
 
-def should_merge(pull_request: dict[str, object], head_sha: str, base_branch: str) -> bool:
+def should_merge(
+    pull_request: dict[str, object], head_sha: str, base_branch: str
+) -> bool:
     head_branch = pull_request.get("headRefName")
     head_oid = pull_request.get("headRefOid")
     base = pull_request.get("baseRefName")
@@ -88,7 +90,9 @@ def merge_pull_request(number: int, head_sha: str) -> None:
         head_sha,
         os.environ.get("BASE_BRANCH", "main"),
     ):
-        print(f"Skipping pull request #{number}: it is not an eligible automated update")
+        print(
+            f"Skipping pull request #{number}: it is not an eligible automated update"
+        )
         return
     run(
         [

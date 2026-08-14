@@ -28,13 +28,19 @@ def required_environment(name: str) -> str:
 
 
 def fetch_oidc_token() -> str:
-    request_url = urllib.parse.urlparse(required_environment("ACTIONS_ID_TOKEN_REQUEST_URL"))
+    request_url = urllib.parse.urlparse(
+        required_environment("ACTIONS_ID_TOKEN_REQUEST_URL")
+    )
     query = dict(urllib.parse.parse_qsl(request_url.query))
     query["audience"] = NIKS3_AUDIENCE
-    url = urllib.parse.urlunparse(request_url._replace(query=urllib.parse.urlencode(query)))
+    url = urllib.parse.urlunparse(
+        request_url._replace(query=urllib.parse.urlencode(query))
+    )
     request = urllib.request.Request(
         url,
-        headers={"Authorization": f"Bearer {required_environment('ACTIONS_ID_TOKEN_REQUEST_TOKEN')}"},
+        headers={
+            "Authorization": f"Bearer {required_environment('ACTIONS_ID_TOKEN_REQUEST_TOKEN')}"
+        },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = json.load(response)
@@ -67,7 +73,9 @@ def main() -> None:
         token_path = Path(directory) / "token"
         write_token(token_path)
         stop = threading.Event()
-        thread = threading.Thread(target=refresh_token, args=(token_path, stop), daemon=True)
+        thread = threading.Thread(
+            target=refresh_token, args=(token_path, stop), daemon=True
+        )
         thread.start()
         try:
             subprocess.run(

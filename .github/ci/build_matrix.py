@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 from typing import TypeGuard, cast
 
 from lib import NATIVE_RUNNERS, run, write_output
+
 GLOBAL_PACKAGE_PATHS = frozenset({"default.nix", "flake.lock", "flake.nix"})
 GLOBAL_PACKAGE_PREFIXES = ("lib/", "overlays/")
 PACKAGE_EXPRESSION = r"""
@@ -88,7 +89,9 @@ def packages_for(system: str) -> list[str]:
         env={"BUILD_SYSTEM": system},
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to discover packages for {system}:\n{result.stderr}")
+        raise RuntimeError(
+            f"Failed to discover packages for {system}:\n{result.stderr}"
+        )
 
     payload: object = json.loads(result.stdout)
     if not is_string_list(payload):
@@ -106,7 +109,9 @@ def main() -> None:
     if package_filter is None:
         print("Building all public packages")
     else:
-        print(f"Building changed packages: {', '.join(sorted(package_filter)) or '(none)'}")
+        print(
+            f"Building changed packages: {', '.join(sorted(package_filter)) or '(none)'}"
+        )
 
     items = (
         [

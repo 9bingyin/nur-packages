@@ -49,13 +49,17 @@ def latest_release() -> tuple[str, str]:
 
     match = DMG_URL_RE.search(page)
     if match is None:
-        raise RuntimeError("Could not find teamspeak-client-arm.dmg on the downloads page")
+        raise RuntimeError(
+            "Could not find teamspeak-client-arm.dmg on the downloads page"
+        )
     version = match.group(1)
     return version, match.group(0)
 
 
 def prefetch_sri_hash(url: str) -> str:
-    with tempfile.NamedTemporaryFile(prefix="teamspeak6-client-", suffix=".dmg", delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(
+        prefix="teamspeak6-client-", suffix=".dmg", delete=False
+    ) as tmp:
         path = tmp.name
     try:
         run(["curl", *CURL_OPTS, "-o", path, url])

@@ -39,7 +39,9 @@ def latest_release() -> tuple[str, str]:
     version = item.findtext(f"{{{SPARKLE_NAMESPACE}}}shortVersionString")
     enclosure = item.find("enclosure")
     url = enclosure.get("url") if enclosure is not None else None
-    if not isinstance(version, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", version):
+    if not isinstance(version, str) or not re.fullmatch(
+        r"[0-9]+(?:\.[0-9]+)+", version
+    ):
         raise RuntimeError("ChatGPT appcast has an invalid version")
     expected_url = f"{APPCAST_BASE_URL}/ChatGPT-darwin-{ARCH}-{version}.zip"
     if url != expected_url:
@@ -52,7 +54,9 @@ def prefetch_sri_hash(url: str) -> str:
         run(["nix", "store", "prefetch-file", "--json", url], capture=True)
     )
     if not isinstance(payload, dict):
-        raise RuntimeError(f"nix store prefetch-file returned an invalid payload for {url}")
+        raise RuntimeError(
+            f"nix store prefetch-file returned an invalid payload for {url}"
+        )
     hash_value = payload.get("hash")
     if not isinstance(hash_value, str):
         raise RuntimeError(f"nix store prefetch-file returned no hash for {url}")

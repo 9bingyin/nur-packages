@@ -15,10 +15,13 @@ def branch_name(update_type: str, name: str) -> str:
 
 
 def remote_branch_exists(branch: str) -> bool:
-    return run(
-        ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
-        check=False,
-    ).returncode == 0
+    return (
+        run(
+            ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
+            check=False,
+        ).returncode
+        == 0
+    )
 
 
 def parse_args() -> argparse.Namespace:
