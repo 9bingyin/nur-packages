@@ -3,13 +3,10 @@
   pkgs ? import <nixpkgs> { },
 }:
 let
-  inherit (pkgs) lib;
-
-  packageDirs = lib.filterAttrs (
-    name: type: type == "directory" && builtins.pathExists (./packages + "/${name}/default.nix")
-  ) (builtins.readDir ./packages);
-
-  packages = lib.mapAttrs (name: _: import (./packages + "/${name}") { inherit pkgs; }) packageDirs;
+  packages = pkgs.lib.filesystem.packagesFromDirectoryRecursive {
+    directory = ./packages;
+    callPackage = pkgs.callPackage;
+  };
 in
 {
   nixosModules = {

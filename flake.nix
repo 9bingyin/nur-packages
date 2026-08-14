@@ -25,13 +25,6 @@
           "aarch64-linux"
           "aarch64-darwin"
         ];
-
-        pkgsFor =
-          system:
-          import inputs.nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-          };
       in
       {
         inherit systems;
@@ -41,7 +34,10 @@
         perSystem =
           { system, config, ... }:
           let
-            pkgs = pkgsFor system;
+            pkgs = import inputs.nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+            };
             nur = import ./default.nix { inherit pkgs; };
             nurPackages = lib.filterAttrs (
               _name: package: lib.isDerivation package && lib.meta.availableOn pkgs.stdenv.hostPlatform package
@@ -50,11 +46,8 @@
           {
             _module.args.pkgs = pkgs;
 
-            packages = nurPackages // {
-              default = pkgs.callPackage ./packages/default/package.nix {
-                packages = nurPackages;
-              };
-            };
+            legacyPackages = nur;
+            packages = nurPackages;
 
             checks = {
               package-metadata = import ./checks/package-metadata.nix {
@@ -86,8 +79,6 @@
           };
 
         flake = {
-          legacyPackages = lib.genAttrs systems (system: import ./default.nix { pkgs = pkgsFor system; });
-
           overlays = {
             default = import ./overlays/nur-packages.nix {
               packages = inputs.self.packages;

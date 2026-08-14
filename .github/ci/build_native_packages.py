@@ -73,8 +73,6 @@ def nix_fast_build_command(system: str, niks3_server: str | None) -> list[str]:
         "nix-fast-build",
         "--flake",
         f".#packages.{system}",
-        "--select",
-        'packages: builtins.removeAttrs packages [ "default" ]',
         "--systems",
         system,
         "--skip-cached",

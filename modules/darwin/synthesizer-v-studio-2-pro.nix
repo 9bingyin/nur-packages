@@ -36,8 +36,8 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../../packages/synthesizer-v-studio-2-pro { };
-      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/synthesizer-v-studio-2-pro { }";
+      default = pkgs.callPackage ../../packages/synthesizer-v-studio-2-pro/package.nix { };
+      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/synthesizer-v-studio-2-pro/package.nix { }";
       description = "The Synthesizer V Studio 2 Pro package to integrate.";
     };
 

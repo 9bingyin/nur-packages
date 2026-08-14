@@ -37,8 +37,8 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../../packages/uuremote { };
-      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/uuremote { }";
+      default = pkgs.callPackage ../../packages/uuremote/package.nix { };
+      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/uuremote/package.nix { }";
       description = "The UU Remote package whose signed app bundle and launchd plists are installed.";
     };
   };

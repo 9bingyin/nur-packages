@@ -22,8 +22,8 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../../packages/sparkle { };
-      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/sparkle { }";
+      default = pkgs.callPackage ../../packages/sparkle/package.nix { };
+      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/sparkle/package.nix { }";
       description = ''
         Sparkle package whose built-in Mihomo cores are installed with the
         permissions needed for TUN mode. Set this to the same package installed

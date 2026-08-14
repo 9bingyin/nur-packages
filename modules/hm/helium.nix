@@ -86,8 +86,8 @@ in
 
     package = mkOption {
       type = types.package;
-      default = pkgs.callPackage ../../packages/helium { };
-      defaultText = literalExpression "pkgs.callPackage ../../packages/helium { }";
+      default = pkgs.callPackage ../../packages/helium/package.nix { };
+      defaultText = literalExpression "pkgs.callPackage ../../packages/helium/package.nix { }";
       description = "The Helium package to install.";
     };
 
