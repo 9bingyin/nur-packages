@@ -1,6 +1,6 @@
 #!/usr/bin/env nix
 #! nix shell --inputs-from .# nixpkgs#python3 --command python3
-"""Build uncached native packages while refreshing the short-lived niks3 OIDC token."""
+"""Build native packages with nix-fast-build. Upload to niks3 when NIKS3_SERVER is set."""
 
 from __future__ import annotations
 
@@ -14,10 +14,7 @@ import urllib.request
 from pathlib import Path
 
 NIKS3_AUDIENCE = "https://niks3.bingyin.org"
-# The wrapper bundles nix-eval-jobs; pin it until upstream issue #430 is fixed.
-NIX_FAST_BUILD_INPUT = (
-    "github:NixOS/nixpkgs/104240a772428cc2e20d8fd86c9ddbb886bbaff2#nix-fast-build"
-)
+NIX_FAST_BUILD_INPUT = "github:Mic92/nix-fast-build"
 
 
 def required_environment(name: str) -> str:
@@ -67,8 +64,45 @@ def refresh_token(path: Path, stop: threading.Event) -> None:
                 stop.wait(15)
 
 
+def nix_fast_build_command(system: str, niks3_server: str | None) -> list[str]:
+    command = [
+        "nix",
+        "shell",
+        NIX_FAST_BUILD_INPUT,
+        "-c",
+        "nix-fast-build",
+        "--flake",
+        f".#packages.{system}",
+        "--select",
+        'packages: builtins.removeAttrs packages [ "default" ]',
+        "--systems",
+        system,
+        "--skip-cached",
+        "--eval-workers",
+        "1",
+        "--no-nom",
+        "--no-link",
+    ]
+    if niks3_server:
+        command[3:3] = ["nixpkgs#niks3"]
+        command.extend(["--niks3-server", niks3_server])
+    return command
+
+
+def run_build(system: str, niks3_server: str | None, token_path: Path | None) -> None:
+    env = dict(os.environ)
+    if token_path is not None:
+        env["NIKS3_AUTH_TOKEN_FILE"] = str(token_path)
+    subprocess.run(nix_fast_build_command(system, niks3_server), check=True, env=env)
+
+
 def main() -> None:
     system = required_environment("SYSTEM")
+    niks3_server = os.environ.get("NIKS3_SERVER")
+    if not niks3_server:
+        run_build(system, None, None)
+        return
+
     with tempfile.TemporaryDirectory(prefix="niks3-auth-") as directory:
         token_path = Path(directory) / "token"
         write_token(token_path)
@@ -78,31 +112,7 @@ def main() -> None:
         )
         thread.start()
         try:
-            subprocess.run(
-                [
-                    "nix",
-                    "shell",
-                    NIX_FAST_BUILD_INPUT,
-                    "nixpkgs#niks3",
-                    "-c",
-                    "nix-fast-build",
-                    "--flake",
-                    f".#packages.{system}",
-                    "--select",
-                    'packages: builtins.removeAttrs packages [ "default" "formatter" ]',
-                    "--systems",
-                    system,
-                    "--skip-cached",
-                    "--eval-workers",
-                    "1",
-                    "--niks3-server",
-                    required_environment("NIKS3_SERVER"),
-                    "--no-nom",
-                    "--no-link",
-                ],
-                check=True,
-                env={**os.environ, "NIKS3_AUTH_TOKEN_FILE": str(token_path)},
-            )
+            run_build(system, niks3_server, token_path)
         finally:
             stop.set()
             thread.join(timeout=1)

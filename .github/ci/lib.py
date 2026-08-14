@@ -6,9 +6,6 @@ import os
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Literal
-
-UpdateType = Literal["package", "flake-input"]
 
 NATIVE_RUNNERS = {
     "x86_64-linux": "ubuntu-latest",

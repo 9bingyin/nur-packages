@@ -7,7 +7,6 @@ let
     "nixosModules"
     "homeModules"
     "darwinModules"
-    "flakeModules"
     "default"
   ];
 

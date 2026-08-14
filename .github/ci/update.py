@@ -4,13 +4,12 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import subprocess
 from pathlib import Path
 
-from lib import nix_eval_raw, run, write_output
+from lib import nix_eval_raw, run
 
 CI_DIR = Path(__file__).resolve().parent
 
@@ -127,22 +126,6 @@ def process_target(
     )
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("type", nargs="?", choices=("package", "flake-input"))
-    parser.add_argument("name", nargs="?")
-    return parser.parse_args()
-
-
-def update_one(update_type: str, name: str, system: str) -> None:
-    new_version = apply_update(update_type, name, system)
-    if new_version is None:
-        write_output("updated", "false")
-        return
-    write_output("updated", "true")
-    write_output("new_version", new_version)
-
-
 def update_group(update_type: str, system: str) -> None:
     raw_targets = os.environ.get("UPDATE_TARGETS")
     if not raw_targets:
@@ -167,14 +150,7 @@ def update_group(update_type: str, system: str) -> None:
 
 
 def main() -> None:
-    args = parse_args()
     system = os.environ.get("NIX_UPDATE_SYSTEM", "x86_64-linux")
-    if (args.type is None) != (args.name is None):
-        raise RuntimeError("type and name must be provided together")
-    if args.type is not None and args.name is not None:
-        update_one(args.type, args.name, system)
-        return
-
     update_type = os.environ.get("UPDATE_TYPE")
     if update_type not in {"package", "flake-input"}:
         raise RuntimeError("UPDATE_TYPE must be package or flake-input")

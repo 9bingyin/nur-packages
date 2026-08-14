@@ -7,38 +7,19 @@ permissions:
   contents: read
 
 jobs:
-  discover:
-    name: Discover package builds
-    runs-on: ubuntu-latest
-    outputs:
-      has-packages: ${{ steps.matrix.outputs.has-packages }}
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Set up Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            extra-substituters = https://cache.bingyin.org
-            extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
-            access-tokens = github.com=${{ github.token }}
-      - name: Build changed package matrix
-        id: matrix
-        env:
-          BASE_REVISION: ${{ github.event.pull_request.base.sha }}
-        run: ./.github/ci/build_matrix.py --base-revision "$BASE_REVISION"
-
   build:
-    needs: discover
-    if: needs.discover.outputs.has-packages == 'true'
-    name: ${{ matrix.package }} (${{ matrix.system }})
+    name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+          - runner: macos-latest
+            system: aarch64-darwin
     steps:
       - uses: actions/checkout@v7
       - name: Set up Nix
@@ -49,9 +30,8 @@ jobs:
             extra-substituters = https://cache.bingyin.org
             extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
             access-tokens = github.com=${{ github.token }}
-      - name: Build package
+      - name: Build packages
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
-        run: >-
-          nix build --no-link
-          ".#packages.${{ matrix.system }}.${{ matrix.package }}"
+          SYSTEM: ${{ matrix.system }}
+        run: ./.github/ci/build_native_packages.py
