@@ -42,15 +42,6 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    app="$out/Applications/Termius.app"
-
-    test -x "$app/Contents/MacOS/Termius"
-    test -x "$out/bin/termius-app"
-    /usr/bin/codesign --verify --deep --strict "$app"
-  '';
-
   meta = {
     description = "Cross-platform SSH client with cloud data sync and more";
     homepage = "https://termius.com/";

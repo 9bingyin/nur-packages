@@ -22,7 +22,6 @@ in
 {
   lib = import ./lib { inherit pkgs; };
   nixosModules = {
-    mihomo-warp = ./modules/nixos/mihomo-warp.nix;
     usque = ./modules/nixos/usque.nix;
   };
   homeModules = {

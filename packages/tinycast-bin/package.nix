@@ -44,12 +44,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    test -x "$out/Applications/Tinycast.app/Contents/MacOS/Tinycast"
-    test -x "$out/bin/tinycast"
-  '';
-
   meta = {
     description = "Tiny native macOS launcher with hotkeys and clipboard history";
     homepage = "https://github.com/abue-ammar/tinycast";

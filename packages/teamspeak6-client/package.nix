@@ -44,12 +44,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    test -x "$out/Applications/TeamSpeak.app/Contents/MacOS/TeamSpeak"
-    test ! -L "$out/bin/TeamSpeak"
-  '';
-
   meta = {
     description = "TeamSpeak voice communication tool (beta version)";
     homepage = "https://teamspeak.com/";

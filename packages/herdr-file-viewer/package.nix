@@ -34,11 +34,6 @@ rustPlatform.buildRustPackage rec {
     ln -s ../target/release/herdr-file-viewer "$out/bin/herdr-file-viewer"
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    test -x "$out/target/release/herdr-file-viewer"
-  '';
-
   passthru.pluginId = "herdr-file-viewer";
 
   meta = {

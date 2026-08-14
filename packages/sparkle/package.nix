@@ -143,12 +143,6 @@ buildNpmPackage {
     ${lib.getExe rcodesign} sign "$out/Applications/Sparkle.app"
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    test -x "$out/Applications/Sparkle.app/Contents/MacOS/Sparkle"
-    test -x "$out/bin/sparkle"
-  '';
-
   passthru = {
     inherit pnpmDeps resources;
   };

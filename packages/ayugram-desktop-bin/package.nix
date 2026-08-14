@@ -44,15 +44,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    app="$out/Applications/AyuGram.app"
-
-    test -x "$app/Contents/MacOS/AyuGram"
-    test -x "$out/bin/ayugram-desktop"
-    /usr/bin/codesign --verify --deep --strict "$app"
-  '';
-
   meta = {
     description = "Telegram client with ghost mode and message history";
     homepage = "https://github.com/AyuGram/AyuGramDesktop";

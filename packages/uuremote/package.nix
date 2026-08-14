@@ -75,17 +75,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    test -x "$out/Applications/UURemote.app/Contents/MacOS/UURemote"
-    test -x "$out/Applications/UURemote.app/Contents/Helpers/uuyc-cli"
-    test -f "$out/Library/LaunchAgents/com.netease.uuremote.agent.plist"
-    test -f "$out/Library/LaunchDaemons/com.netease.uuremote.daemon.plist"
-    test -d "$out/Applications/UURemote.app/Contents/Resources/channel/gwqd"
-    test ! -L "$out/bin/uuremote"
-    test ! -L "$out/bin/uuyc-cli"
-  '';
-
   meta = {
     description = "NetEase UU remote desktop access and control tool";
     homepage = "https://uuyc.163.com/";

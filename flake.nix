@@ -62,7 +62,6 @@
       };
 
       nixosModules = {
-        mihomo-warp = import ./modules/nixos/mihomo-warp.nix;
         usque = import ./modules/nixos/usque.nix;
       };
 

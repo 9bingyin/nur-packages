@@ -2,6 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
+  versionCheckHook,
 }:
 buildGoModule rec {
   pname = "surge";
@@ -33,21 +34,13 @@ buildGoModule rec {
     fi
   '';
 
-  checkPhase = ''
-    runHook preCheck
-    go test ./...
-    runHook postCheck
-  '';
-
-  doInstallCheck = true;
-  installCheckPhase = ''
-    $out/bin/surge --version
-  '';
-
   preCheck = ''
     export HOME=$TMPDIR
     unset CGO_ENABLED
   '';
+
+  nativeInstallCheckInputs = [ versionCheckHook ];
+  doInstallCheck = true;
 
   meta = with lib; {
     description = "Blazing fast TUI download manager built in Go";

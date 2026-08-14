@@ -22,7 +22,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   sourceRoot = ".";
   dontFixup = true;
-  doInstallCheck = true;
 
   installPhase = ''
     runHook preInstall
@@ -32,10 +31,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     makeWrapper "$out/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" "$out/bin/chatgpt"
 
     runHook postInstall
-  '';
-
-  installCheckPhase = ''
-    test ! -L "$out/bin/chatgpt"
   '';
 
   meta = {

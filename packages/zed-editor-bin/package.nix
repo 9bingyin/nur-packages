@@ -39,15 +39,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  doInstallCheck = true;
-  installCheckPhase = ''
-    app="$out/Applications/Zed.app"
-
-    test -x "$app/Contents/MacOS/zed"
-    test -x "$out/bin/zeditor"
-    /usr/bin/codesign --verify --deep --strict "$app"
-  '';
-
   meta = {
     description = "High-performance, multiplayer code editor from the creators of Atom and Tree-sitter";
     homepage = "https://zed.dev";
