@@ -10,11 +10,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "uuremote";
-  version = "4.35.0";
+  version = "4.37.0";
 
   src = fetchurl {
     url = "https://a56.gdl.netease.com/uuyc_${finalAttrs.version}.pkg";
-    hash = "sha256-934tH7XX2jmF7VS+ZY7PZFDs6M+GjBj6NqeISIiQRVs=";
+    hash = "sha256-wCNsgnhaflkKHd4cMLDPckUVdo//o8h16QoweyZYLNw=";
   };
 
   nativeBuildInputs = [
