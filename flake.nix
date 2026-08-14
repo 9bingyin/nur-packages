@@ -43,7 +43,9 @@
           let
             pkgs = pkgsFor system;
             nur = import ./default.nix { inherit pkgs; };
-            nurPackages = lib.filterAttrs (_name: lib.isDerivation) nur;
+            nurPackages = lib.filterAttrs (
+              _name: package: lib.isDerivation package && lib.meta.availableOn pkgs.stdenv.hostPlatform package
+            ) nur;
           in
           {
             _module.args.pkgs = pkgs;

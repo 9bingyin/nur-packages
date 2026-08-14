@@ -81,7 +81,6 @@ def nix_fast_build_command(system: str, niks3_server: str | None) -> list[str]:
         "--eval-workers",
         "1",
         "--no-nom",
-        "--no-link",
     ]
     if niks3_server:
         command[3:3] = ["nixpkgs#niks3"]
