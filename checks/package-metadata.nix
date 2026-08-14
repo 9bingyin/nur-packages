@@ -1,8 +1,8 @@
-{ pkgs, perSystem, ... }:
+{ pkgs, packages }:
 let
   visiblePackages = pkgs.lib.filterAttrs (
     _name: package: pkgs.lib.isDerivation package && !(package.passthru.hideFromDocs or false)
-  ) perSystem.self;
+  ) packages;
 
   requiredFields = [
     "description"

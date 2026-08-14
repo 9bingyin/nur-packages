@@ -4,18 +4,14 @@
   fzf,
   nix,
   util-linux,
-  perSystem,
-  ...
+  packages,
 }:
 let
-  allPackages = perSystem.self;
-
   visibleNames = builtins.filter (
-    name:
-    name != "default" && name != "formatter" && !(allPackages.${name}.passthru.hideFromDocs or false)
-  ) (builtins.attrNames allPackages);
+    name: name != "default" && !(packages.${name}.passthru.hideFromDocs or false)
+  ) (builtins.attrNames packages);
 
-  packageLines = map (name: "${name}\t${allPackages.${name}.meta.description or ""}") visibleNames;
+  packageLines = map (name: "${name}\t${packages.${name}.meta.description or ""}") visibleNames;
   packageListFile = builtins.toFile "nur-packages.tsv" (builtins.concatStringsSep "\n" packageLines);
 in
 writeShellApplication {

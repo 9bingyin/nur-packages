@@ -1,10 +1,10 @@
-{ pkgs, perSystem, ... }:
+{ pkgs, packages }:
 let
-  packages = pkgs.lib.filterAttrs (_: package: pkgs.lib.isDerivation package) perSystem.self;
+  derivations = pkgs.lib.filterAttrs (_: package: pkgs.lib.isDerivation package) packages;
 
   forced = pkgs.lib.mapAttrsToList (
     _name: package: builtins.deepSeq (package.meta.maintainers or [ ]) true
-  ) packages;
+  ) derivations;
 in
 pkgs.runCommand "meta-maintainers-check"
   {

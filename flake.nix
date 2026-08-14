@@ -3,76 +3,110 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    systems.url = "github:nix-systems/default";
 
-    blueprint = {
-      url = "github:numtide/blueprint";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.systems.follows = "systems";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    flake-parts = {
-      url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
   };
 
   outputs =
     inputs:
-    let
-      inherit (inputs.nixpkgs) lib;
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } (
+      { lib, ... }:
+      let
+        systems = [
+          "x86_64-linux"
+          "aarch64-linux"
+          "aarch64-darwin"
+        ];
 
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "aarch64-darwin"
-      ];
-
-      mkPkgsFor =
-        system:
-        import inputs.nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-        };
-
-      legacyPackages = lib.genAttrs systems (system: import ./default.nix { pkgs = mkPkgsFor system; });
-
-      blueprintOutputs = inputs.blueprint {
-        inherit inputs;
+        pkgsFor =
+          system:
+          import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+          };
+      in
+      {
         inherit systems;
-        nixpkgs.config.allowUnfree = true;
-      };
-    in
-    blueprintOutputs
-    // {
-      inherit legacyPackages;
 
-      overlays = {
-        default = import ./overlays/nur-packages.nix {
-          packages = blueprintOutputs.packages;
+        imports = [ inputs.treefmt-nix.flakeModule ];
+
+        perSystem =
+          { system, config, ... }:
+          let
+            pkgs = pkgsFor system;
+            nur = import ./default.nix { inherit pkgs; };
+            nurPackages = lib.filterAttrs (_name: lib.isDerivation) nur;
+          in
+          {
+            _module.args.pkgs = pkgs;
+
+            packages = nurPackages // {
+              default = pkgs.callPackage ./packages/default/package.nix {
+                packages = nurPackages;
+              };
+            };
+
+            checks = {
+              package-metadata = import ./checks/package-metadata.nix {
+                inherit pkgs;
+                packages = config.packages;
+              };
+              meta-maintainers = import ./checks/meta-maintainers.nix {
+                inherit pkgs;
+                packages = config.packages;
+              };
+            };
+
+            treefmt = {
+              projectRootFile = "flake.lock";
+              flakeCheck = false;
+
+              programs.nixfmt.enable = true;
+              programs.ruff-format.enable = true;
+              programs.shellcheck.enable = true;
+              programs.shfmt.enable = true;
+              programs.yamlfmt = {
+                enable = true;
+                settings.formatter = {
+                  retain_line_breaks_single = true;
+                  scan_folded_as_literal = true;
+                };
+              };
+            };
+          };
+
+        flake = {
+          legacyPackages = lib.genAttrs systems (system: import ./default.nix { pkgs = pkgsFor system; });
+
+          overlays = {
+            default = import ./overlays/nur-packages.nix {
+              packages = inputs.self.packages;
+            };
+            shared-nixpkgs = import ./overlays/shared-nixpkgs.nix;
+          };
+
+          nixosModules = {
+            usque = import ./modules/nixos/usque.nix;
+          };
+
+          homeModules = {
+            helium = import ./modules/hm/helium.nix;
+          };
+
+          darwinModules = {
+            sparkle = import ./modules/darwin/sparkle.nix;
+            synthesizer-v-studio-2-pro = import ./modules/darwin/synthesizer-v-studio-2-pro.nix;
+            uuremote = import ./modules/darwin/uuremote.nix;
+          };
         };
-        shared-nixpkgs = import ./overlays/shared-nixpkgs.nix {
-          inherit (blueprintOutputs) mkPackagesFor;
-        };
-      };
-
-      nixosModules = {
-        usque = import ./modules/nixos/usque.nix;
-      };
-
-      homeModules = {
-        helium = import ./modules/hm/helium.nix;
-      };
-
-      darwinModules = {
-        sparkle = import ./modules/darwin/sparkle.nix;
-        synthesizer-v-studio-2-pro = import ./modules/darwin/synthesizer-v-studio-2-pro.nix;
-        uuremote = import ./modules/darwin/uuremote.nix;
-      };
-    };
+      }
+    );
 }

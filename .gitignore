@@ -11,4 +11,5 @@ scripts/check.py
 
 result
 result-*
+.ruff_cache
 
