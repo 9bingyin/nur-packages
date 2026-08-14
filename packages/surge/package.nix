@@ -12,7 +12,7 @@ buildGoModule rec {
     owner = "SurgeDM";
     repo = "Surge";
     rev = "v${version}";
-    hash = "sha256-+sSAaM1v0iqmtETGRqqN4dRHbn1HTR4PB7FehWLAmoo=";
+    hash = "sha256-N25JU3uuXr8SGNeoo0JSL0+8rGaYeQ3lWZxn+aXkJIg=";
   };
 
   vendorHash = "sha256-uZrSOcwfXJ9LwuHi+0wIjPBIsAdULU60GbWrJNV923s=";
