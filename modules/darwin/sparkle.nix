@@ -7,14 +7,55 @@
 
 let
   cfg = config.services.sparkle;
-  managedDirectory = "/Library/Application Support/com.github.9bingyin.nur-packages.sparkle";
-  sidecarDirectory = "${managedDirectory}/sidecar";
-  marker = "${managedDirectory}/.managed-by-nix-sparkle";
-  legacyManagedDirectory = "/Library/Nix/Sparkle";
-  legacyMarker = "${legacyManagedDirectory}/.managed-by-nix-sparkle";
-  sourceDirectory = "${cfg.package}/Applications/Sparkle.app/Contents/Resources/sidecar";
-  install = lib.getExe' pkgs.coreutils "install";
-  cmp = lib.getExe' pkgs.diffutils "cmp";
+  appSource = "${cfg.package}/Applications/Sparkle.app";
+  appPath = "/Applications/Sparkle.app";
+  sidecarDirectory = "${appPath}/Contents/Resources/sidecar";
+  marker = "${appPath}/Contents/Resources/.managed-by-nix-sparkle";
+  markerText = "managed by nix-darwin services.sparkle";
+  rsync = lib.getExe pkgs.rsync;
+
+  cli = pkgs.writeShellScriptBin "sparkle" ''
+    exec ${lib.escapeShellArg "${appPath}/Contents/MacOS/Sparkle"} "$@"
+  '';
+
+  shellBindings = ''
+    appSource=${lib.escapeShellArg appSource}
+    appPath=${lib.escapeShellArg appPath}
+    sidecarDirectory=${lib.escapeShellArg sidecarDirectory}
+    marker=${lib.escapeShellArg marker}
+    markerText=${lib.escapeShellArg markerText}
+    rsync=${lib.escapeShellArg rsync}
+
+    isManagedApp() {
+      [ -f "$marker" ] && [ ! -L "$marker" ] \
+        && /usr/bin/grep -qxF "$markerText" "$marker"
+    }
+
+    writeManagedMarker() {
+      local markerPath="$1"
+      local directory temporary
+      directory=$(/usr/bin/dirname "$markerPath")
+      if [ -L "$directory" ] || [ ! -d "$directory" ]; then
+        echo "invalid Sparkle marker directory: $directory" >&2
+        exit 1
+      fi
+      if [ -L "$markerPath" ]; then
+        echo "refusing symbolic link in Sparkle marker path: $markerPath" >&2
+        exit 1
+      fi
+      /bin/chmod u+w "$directory" 2>/dev/null || true
+      temporary="$markerPath.new"
+      if [ -L "$temporary" ] || { [ -e "$temporary" ] && [ ! -f "$temporary" ]; }; then
+        echo "invalid Sparkle marker temporary path: $temporary" >&2
+        exit 1
+      fi
+      /bin/rm -f "$temporary"
+      printf '%s\n' "$markerText" > "$temporary"
+      /usr/sbin/chown root:wheel "$temporary"
+      /bin/chmod 0644 "$temporary"
+      /bin/mv -f "$temporary" "$markerPath"
+    }
+  '';
 in
 {
   options.services.sparkle = {
@@ -25,9 +66,8 @@ in
       default = pkgs.callPackage ../../packages/sparkle/package.nix { };
       defaultText = lib.literalExpression "pkgs.callPackage ../../packages/sparkle/package.nix { }";
       description = ''
-        Sparkle package whose built-in Mihomo cores are installed with the
-        permissions needed for TUN mode. Set this to the same package installed
-        through Home Manager when applicable.
+        Sparkle package copied to /Applications. The module then grants TUN
+        permissions on the original sidecar cores inside that app copy.
       '';
     };
 
@@ -35,138 +75,105 @@ in
       type = lib.types.bool;
       default = false;
       description = ''
-        Add Sparkle to environment.systemPackages. This defaults to false so
-        Home Manager can install the application without a duplicate system
-        package.
+        Add a sparkle command that launches /Applications/Sparkle.app.
       '';
     };
   };
 
   config = {
-    environment.systemPackages = lib.mkIf (cfg.enable && cfg.addToSystemPackages) [ cfg.package ];
+    assertions = lib.optionals cfg.enable [
+      {
+        assertion = pkgs.stdenv.hostPlatform.isDarwin;
+        message = "services.sparkle is only supported on darwin";
+      }
+    ];
+
+    environment.systemPackages = lib.mkIf (cfg.enable && cfg.addToSystemPackages) [ cli ];
 
     system.activationScripts.extraActivation.text = lib.mkAfter (
       if cfg.enable then
         ''
           echo "installing Sparkle built-in Mihomo cores..." >&2
 
-          sourceDirectory=${lib.escapeShellArg sourceDirectory}
-          managedDirectory=${lib.escapeShellArg managedDirectory}
-          sidecarDirectory=${lib.escapeShellArg sidecarDirectory}
-          marker=${lib.escapeShellArg marker}
-          legacyManagedDirectory=${lib.escapeShellArg legacyManagedDirectory}
-          legacyMarker=${lib.escapeShellArg legacyMarker}
+          ${shellBindings}
 
-          ensureSecureDirectory() {
-            local directory="$1"
-            local metadata owner mode
-
-            if [ -L "$directory" ] || [ ! -d "$directory" ]; then
-              echo "invalid Sparkle core directory: $directory" >&2
-              exit 1
-            fi
-
-            metadata=$(/usr/bin/stat -f '%u:%Lp' "$directory")
-            owner=''${metadata%%:*}
-            mode=''${metadata#*:}
-            if [ "$owner" != 0 ] || (( (8#$mode & 022) != 0 )); then
-              echo "insecure Sparkle core directory: $directory" >&2
-              exit 1
-            fi
-          }
-
-          ensureManagedDirectory() {
-            local directory="$1"
-            local metadata owner group mode
-
-            if [ -L "$directory" ]; then
-              echo "refusing symbolic link in Sparkle core path: $directory" >&2
-              exit 1
-            fi
-
-            ${install} -d -o root -g wheel -m 0755 "$directory"
-            metadata=$(/usr/bin/stat -f '%u:%g:%Lp' "$directory")
-            owner=''${metadata%%:*}
-            metadata=''${metadata#*:}
-            group=''${metadata%%:*}
-            mode=''${metadata#*:}
-            if [ "$owner" != 0 ] || [ "$group" != 0 ] || [ "$mode" != 755 ]; then
-              echo "insecure Sparkle core directory: $directory" >&2
-              exit 1
-            fi
-          }
-
-          removeManagedDirectory() {
-            local directory="$1"
-            local markerPath="$2"
-
-            if [ -d "$directory" ] && [ ! -L "$directory" ] \
-              && [ -f "$markerPath" ] && [ ! -L "$markerPath" ] \
-              && grep -qxF 'managed by nix-darwin services.sparkle' "$markerPath"; then
-              rm -rf "$directory"
-            fi
-          }
-
-          ensureSecureDirectory /Library
-          ensureSecureDirectory '/Library/Application Support'
-          ensureManagedDirectory "$managedDirectory"
-          ensureManagedDirectory "$sidecarDirectory"
-          if [ -L "$marker" ]; then
-            echo "refusing symbolic link in Sparkle marker path: $marker" >&2
+          if [ -L /Applications ] || [ ! -d /Applications ]; then
+            echo "invalid Applications directory" >&2
             exit 1
           fi
-          printf '%s\n' 'managed by nix-darwin services.sparkle' > "$marker"
-          chown root:wheel "$marker"
-          chmod 0644 "$marker"
+          if [ -e "$appPath" ] || [ -L "$appPath" ]; then
+            if ! isManagedApp; then
+              echo "refusing to replace unmanaged Sparkle app: $appPath" >&2
+              exit 1
+            fi
+          fi
+
+          changed=0
+          if [ ! -d "$appPath" ] || [ -L "$appPath" ] || ! isManagedApp; then
+            changed=1
+          else
+            changeList=$("$rsync" -ani --delete --checksum \
+              --no-perms --no-owner --no-group --no-times \
+              --exclude '.managed-by-nix-sparkle' \
+              "$appSource/" "$appPath/")
+            if [ -n "$changeList" ]; then
+              changed=1
+            fi
+          fi
+
+          if [ "$changed" -eq 1 ]; then
+            staging=$(/usr/bin/mktemp -d /private/var/tmp/sparkle.XXXXXX)
+            "$rsync" \
+              --archive \
+              --checksum \
+              --delete \
+              --copy-unsafe-links \
+              --chmod=-w \
+              --no-owner \
+              --no-group \
+              "$appSource/" "$staging/Sparkle.app/"
+            writeManagedMarker "$staging/Sparkle.app/Contents/Resources/.managed-by-nix-sparkle"
+
+            if [ -e "$appPath" ] || [ -L "$appPath" ]; then
+              /bin/mv "$appPath" "$staging/previous.app"
+            fi
+            /bin/mv "$staging/Sparkle.app" "$appPath"
+            /bin/rm -rf "$staging"
+          fi
+
+          if [ -L "$sidecarDirectory" ] || [ ! -d "$sidecarDirectory" ]; then
+            echo "invalid Sparkle sidecar directory: $sidecarDirectory" >&2
+            exit 1
+          fi
+          sidecarMetadata=$(/usr/bin/stat -f '%u:%Lp' "$sidecarDirectory")
+          sidecarOwner=''${sidecarMetadata%%:*}
+          sidecarMode=''${sidecarMetadata#*:}
+          if [ "$sidecarOwner" != 0 ] || (( (8#$sidecarMode & 022) != 0 )); then
+            echo "insecure Sparkle sidecar directory: $sidecarDirectory" >&2
+            exit 1
+          fi
 
           for core in mihomo mihomo-alpha; do
-            source="$sourceDirectory/$core"
             target="$sidecarDirectory/$core"
-            temporary="$sidecarDirectory/.$core.new"
-
-            if [ ! -f "$source" ]; then
-              echo "missing Sparkle built-in core: $source" >&2
+            if [ -L "$target" ] || [ ! -f "$target" ]; then
+              echo "missing Sparkle built-in core: $target" >&2
               exit 1
             fi
-            if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
-              echo "invalid Sparkle core target: $target" >&2
-              exit 1
-            fi
-
-            if [ ! -f "$target" ] || ! ${cmp} -s "$source" "$target"; then
-              rm -f "$temporary"
-              ${install} -o root -g wheel -m 0755 "$source" "$temporary"
-              /usr/bin/codesign --verify --strict "$temporary"
-              chmod 4755 "$temporary"
-              mv -f "$temporary" "$target"
-            fi
-
-            chown root:wheel "$target"
-            chmod 4755 "$target"
+            /usr/bin/codesign --verify --strict "$target"
+            /usr/sbin/chown root:admin "$target"
+            /bin/chmod 4755 "$target"
           done
 
-          removeManagedDirectory "$legacyManagedDirectory" "$legacyMarker"
+          writeManagedMarker "$marker"
         ''
       else
         ''
-          managedDirectory=${lib.escapeShellArg managedDirectory}
-          marker=${lib.escapeShellArg marker}
-          legacyManagedDirectory=${lib.escapeShellArg legacyManagedDirectory}
-          legacyMarker=${lib.escapeShellArg legacyMarker}
+          ${shellBindings}
 
-          removeManagedDirectory() {
-            local directory="$1"
-            local markerPath="$2"
-
-            if [ -d "$directory" ] && [ ! -L "$directory" ] \
-              && [ -f "$markerPath" ] && [ ! -L "$markerPath" ] \
-              && grep -qxF 'managed by nix-darwin services.sparkle' "$markerPath"; then
-              rm -rf "$directory"
-            fi
-          }
-
-          removeManagedDirectory "$managedDirectory" "$marker"
-          removeManagedDirectory "$legacyManagedDirectory" "$legacyMarker"
+          if isManagedApp; then
+            /bin/chmod -R u+w "$appPath" 2>/dev/null || true
+            /bin/rm -rf "$appPath"
+          fi
         ''
     );
   };

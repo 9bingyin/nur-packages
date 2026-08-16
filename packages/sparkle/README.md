@@ -1,8 +1,15 @@
 # Sparkle
 
-Mihomo 图形客户端。仅 `aarch64-darwin`。
+Mihomo 图形客户端。仅支持 `aarch64-darwin`。
 
-普通代理不需要模块。TUN 需要 nix-darwin 模块 `darwinModules.sparkle`。Home Manager 管不了这项特权配置。
+普通代理不需要模块。TUN 使用 `darwinModules.sparkle`。模块把包里的 `Sparkle.app` 复制到 `/Applications/Sparkle.app`，再给上游原路径里的内核授权：
+
+```text
+/Applications/Sparkle.app/Contents/Resources/sidecar/mihomo
+/Applications/Sparkle.app/Contents/Resources/sidecar/mihomo-alpha
+```
+
+这两个文件是 `root:admin`、`4755`。不要对 Nix store 里的内核做 chmod / setuid。TUN 时打开 `/Applications/Sparkle.app`，不要打开 store 或 Home Manager 里的那份。
 
 ```nix
 { inputs, pkgs, ... }:
@@ -16,8 +23,6 @@ in
     enable = true;
     package = sparkle;
   };
-
-  home-manager.users.<用户名>.home.packages = [ sparkle ];
 }
 ```
 
@@ -25,15 +30,7 @@ in
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `package` | 本仓库 Sparkle 包 | 提供内置 Mihomo 内核的包。和 Home Manager 装的包保持一致 |
-| `addToSystemPackages` | `false` | 是否把应用加入 `environment.systemPackages`。默认关闭，避免和 Home Manager 重复 |
+| `package` | 本仓库 Sparkle 包 | 复制到 `/Applications` 的源包 |
+| `addToSystemPackages` | `false` | 是否添加启动 `/Applications/Sparkle.app` 的 `sparkle` 命令 |
 
-模块会把 `mihomo` / `mihomo-alpha` 装到：
-
-```text
-/Library/Application Support/com.github.9bingyin.nur-packages.sparkle/sidecar/
-```
-
-两个文件都是 `root:wheel`、`4755`。Sparkle 优先用这个目录；找不到再回退到 App Bundle 里的 `Resources/sidecar`。
-
-不要对 store 里的 `mihomo` 做 chmod / setuid。关掉模块后，只会清带自身管理标记的目录。
+关掉模块后，只有 App 内管理标记匹配时，才会删除 `/Applications/Sparkle.app`。如果该路径已有不是本模块安装的 App，激活会失败，不会覆盖。

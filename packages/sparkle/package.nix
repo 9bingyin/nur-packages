@@ -1,20 +1,23 @@
 {
   lib,
   stdenvNoCC,
-  buildNpmPackage,
+  buildGoModule,
   fetchFromGitHub,
   fetchPnpmDeps,
-  fetchurl,
-  cpio,
+  dbip-asn-lite,
+  dbip-country-lite,
   electron_43,
-  gzip,
   jq,
   makeWrapper,
-  nodejs_26,
+  mihomo,
+  nodejs,
+  pnpm,
   pnpmConfigHook,
-  pnpm_11,
   rcodesign,
-  xar,
+  sub-store,
+  sub-store-frontend,
+  v2ray-domain-list-community,
+  v2ray-geoip,
 }:
 let
   pname = "sparkle";
@@ -27,48 +30,53 @@ let
     hash = "sha256-R9FVlt0rLxgIpeIJbwoIIYPmpP3LKoRWyt7u4ohbN4E=";
   };
 
-  resources = stdenvNoCC.mkDerivation {
-    pname = "${pname}-resources";
-    inherit version;
+  sparkle-service = buildGoModule {
+    pname = "sparkle-service";
+    version = "0-unstable-2026-07-04";
 
-    src = fetchurl {
-      url = "https://github.com/xishang0128/sparkle/releases/download/${version}/sparkle-macos-${version}-arm64.pkg";
-      hash = "sha256-ic/cTIFt0q4rg/fvfJ48hIQwIGtBXhHxTMtwqqId0wU=";
+    src = fetchFromGitHub {
+      owner = "xishang0128";
+      repo = "sparkle-service";
+      rev = "5acde12bde599553ffa3a95179897da60aaaf8a5";
+      hash = "sha256-urBrY+znJ9wNnyCWVrIE+IwIRgKUqgJQz+hrQ848lNI=";
     };
 
-    nativeBuildInputs = [
-      cpio
-      gzip
-      xar
-    ];
+    vendorHash = "sha256-gg9hcHyVDVFibVwErwCsJtru3TEFnSCpLbGXSgG6XxU=";
 
-    dontConfigure = true;
-    dontBuild = true;
-    dontFixup = true;
-
-    unpackPhase = ''
-      runHook preUnpack
-
-      xar -xf "$src"
-      gzip -dc sparkle.app.pkg/Payload | cpio -idm --quiet
-      find Sparkle.app -name '._*' -delete
-
-      runHook postUnpack
-    '';
-
-    installPhase = ''
-      runHook preInstall
-
-      mkdir -p "$out"
-      cp -R Sparkle.app/Contents/Resources/{files,sidecar} "$out/"
-
-      runHook postInstall
-    '';
+    meta.mainProgram = "sparkle-service";
   };
 
-  # nodejs_24 crashes while pnpm 11 builds its dependency store on aarch64-darwin.
-  # Use the current Node.js release until the fixed nodejs_24 reaches nixpkgs.
-  pnpm = pnpm_11.override { nodejs-slim = nodejs_26; };
+  mihomo-alpha = buildGoModule {
+    pname = "mihomo-alpha";
+    version = "0-unstable-2026-07-21";
+
+    src = fetchFromGitHub {
+      owner = "MetaCubeX";
+      repo = "mihomo";
+      rev = "fe2d02bb1001246d8b306049e16c38d0d5d63677";
+      hash = "sha256-D7SJYZy/A2XtKvFtNtUFQxq5qmRMmbBiCuzp8g9+aDo=";
+    };
+
+    vendorHash = "sha256-Pl8WyIZAMjC5eeMsxdeDXJDa81f4E2t7cqY9BiCzx4w=";
+
+    excludedPackages = [ "./test" ];
+
+    ldflags = [
+      "-s"
+      "-w"
+      "-X github.com/metacubex/mihomo/constant.Version=alpha-fe2d02b"
+    ];
+
+    tags = [ "with_gvisor" ];
+
+    doCheck = false;
+
+    postInstall = ''
+      mv "$out/bin/mihomo" "$out/bin/mihomo-alpha"
+    '';
+
+    meta.mainProgram = "mihomo-alpha";
+  };
 
   pnpmDeps = fetchPnpmDeps {
     inherit
@@ -81,15 +89,13 @@ let
     hash = "sha256-hSozWInESlJhEjNKbVLgRJG+G7dFgFb+834rugHh05c=";
   };
 in
-buildNpmPackage {
-  inherit pname version src;
-
-  patches = [ ./darwin-sidecar-directory.patch ];
-
-  nodejs = nodejs_26;
-  npmConfigHook = pnpmConfigHook;
-  npmDeps = null;
-  inherit pnpmDeps;
+stdenvNoCC.mkDerivation {
+  inherit
+    pname
+    version
+    src
+    pnpmDeps
+    ;
 
   env = {
     ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
@@ -97,9 +103,11 @@ buildNpmPackage {
   };
 
   nativeBuildInputs = [
+    pnpmConfigHook
+    pnpm
+    nodejs
     jq
     makeWrapper
-    pnpm
     rcodesign
   ];
 
@@ -107,8 +115,16 @@ buildNpmPackage {
     RELEASE_VERSION=${lib.escapeShellArg version}
     jq --arg version "$RELEASE_VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
 
-    mkdir -p extra
-    cp -R ${resources}/* extra/
+    mkdir -p extra/files extra/sidecar
+    cp -R ${sub-store-frontend} extra/files/sub-store-frontend
+    install -m 0644 ${sub-store}/share/sub-store/sub-store.bundle.js extra/files/sub-store.bundle.js
+    install -m 0644 ${dbip-asn-lite.mmdb} extra/files/ASN.mmdb
+    install -m 0644 ${dbip-country-lite.mmdb} extra/files/country.mmdb
+    install -m 0644 ${v2ray-geoip}/share/v2ray/geoip.dat extra/files/geoip.dat
+    install -m 0644 ${v2ray-domain-list-community}/share/v2ray/geosite.dat extra/files/geosite.dat
+    install -m 0755 ${lib.getExe sparkle-service} extra/files/sparkle-service
+    install -m 0755 ${lib.getExe mihomo} extra/sidecar/mihomo
+    install -m 0755 ${lib.getExe mihomo-alpha} extra/sidecar/mihomo-alpha
   '';
 
   buildPhase = ''
@@ -144,7 +160,11 @@ buildNpmPackage {
   '';
 
   passthru = {
-    inherit pnpmDeps resources;
+    inherit
+      mihomo-alpha
+      pnpmDeps
+      sparkle-service
+      ;
   };
 
   meta = with lib; {
