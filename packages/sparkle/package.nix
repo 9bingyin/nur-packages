@@ -32,39 +32,39 @@ let
 
   sparkle-service = buildGoModule {
     pname = "sparkle-service";
-    version = "0-unstable-2026-07-04";
+    version = "0-unstable-2026-08-01";
 
     src = fetchFromGitHub {
       owner = "xishang0128";
       repo = "sparkle-service";
-      rev = "5acde12bde599553ffa3a95179897da60aaaf8a5";
-      hash = "sha256-urBrY+znJ9wNnyCWVrIE+IwIRgKUqgJQz+hrQ848lNI=";
+      rev = "3cabb61aaf446444d71acbe06a3abdd768d2e80e";
+      hash = "sha256-djXVcBDf5whSM6U0qBydFeX+XbHnmKTVGDet6aA3a1g=";
     };
 
-    vendorHash = "sha256-gg9hcHyVDVFibVwErwCsJtru3TEFnSCpLbGXSgG6XxU=";
+    vendorHash = "sha256-GXAP6pCKyy41UyMfz1X9F8GeAbyYZi4suPXDryKINOU=";
 
     meta.mainProgram = "sparkle-service";
   };
 
-  mihomo-alpha = buildGoModule {
+  mihomo-alpha = buildGoModule rec {
     pname = "mihomo-alpha";
-    version = "0-unstable-2026-07-21";
+    version = "0-unstable-2026-08-16";
 
     src = fetchFromGitHub {
       owner = "MetaCubeX";
       repo = "mihomo";
-      rev = "fe2d02bb1001246d8b306049e16c38d0d5d63677";
-      hash = "sha256-D7SJYZy/A2XtKvFtNtUFQxq5qmRMmbBiCuzp8g9+aDo=";
+      rev = "8df94628b28d097233d5e4c03903bbb16028dd2f";
+      hash = "sha256-qvHoq9tSsBCV08XvXap1heQcV8gXGDbIYwGpoU/o+5U=";
     };
 
-    vendorHash = "sha256-Pl8WyIZAMjC5eeMsxdeDXJDa81f4E2t7cqY9BiCzx4w=";
+    vendorHash = "sha256-Y0rwJvSDy2/s0gs6wmqkyAYs4HDXX8+he3ERcyYWBO0=";
 
     excludedPackages = [ "./test" ];
 
     ldflags = [
       "-s"
       "-w"
-      "-X github.com/metacubex/mihomo/constant.Version=alpha-fe2d02b"
+      "-X github.com/metacubex/mihomo/constant.Version=alpha-${lib.substring 0 7 src.rev}"
     ];
 
     tags = [ "with_gvisor" ];
