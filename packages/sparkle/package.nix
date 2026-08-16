@@ -53,11 +53,11 @@ let
     src = fetchFromGitHub {
       owner = "MetaCubeX";
       repo = "mihomo";
-      rev = "8df94628b28d097233d5e4c03903bbb16028dd2f";
-      hash = "sha256-qvHoq9tSsBCV08XvXap1heQcV8gXGDbIYwGpoU/o+5U=";
+      rev = "ac017cdd246ce8bd547653d927e7bf77d7ee73d5";
+      hash = "sha256-QyzF8FIRMrnZHVkMdCEY+U+jW+jXnCPx8JKTYp5d/R8=";
     };
 
-    vendorHash = "sha256-Y0rwJvSDy2/s0gs6wmqkyAYs4HDXX8+he3ERcyYWBO0=";
+    vendorHash = "sha256-4OSuPu+x6m+ivHCt4nn0EgdFzfqaUz71rATfWjHrhG8=";
 
     excludedPackages = [ "./test" ];
 
