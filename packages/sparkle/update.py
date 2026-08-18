@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update Sparkle and its bundled Go sidecars with nix-update."""
+"""Update Sparkle and its bundled service with nix-update."""
 
 from __future__ import annotations
 
@@ -42,7 +42,6 @@ def normalize_unstable_versions() -> None:
 def main() -> None:
     nix_update("sparkle")
     nix_update("--version=branch", "sparkle.sparkle-service")
-    nix_update("--version=branch=Alpha", "sparkle.mihomo-alpha")
     normalize_unstable_versions()
 
 

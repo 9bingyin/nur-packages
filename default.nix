@@ -3,9 +3,10 @@
   pkgs ? import <nixpkgs> { },
 }:
 let
+  # Add repository packages to the callPackage scope so packages can depend on siblings.
   packages = pkgs.lib.filesystem.packagesFromDirectoryRecursive {
     directory = ./packages;
-    callPackage = pkgs.callPackage;
+    callPackage = pkgs.newScope packages;
   };
 in
 {

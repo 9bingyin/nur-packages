@@ -63,8 +63,8 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../../packages/sparkle/package.nix { };
-      defaultText = lib.literalExpression "pkgs.callPackage ../../packages/sparkle/package.nix { }";
+      default = (import ../../default.nix { inherit pkgs; }).sparkle;
+      defaultText = lib.literalExpression "(import ../../default.nix { inherit pkgs; }).sparkle";
       description = ''
         Sparkle package copied to /Applications. The module then grants TUN
         permissions on the original sidecar cores inside that app copy.
