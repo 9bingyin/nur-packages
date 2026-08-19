@@ -5,7 +5,7 @@
 }:
 buildGoModule rec {
   pname = "mihomo-alpha";
-  version = "Prerelease-Alpha-unstable-2026-08-17";
+  version = "0-unstable-2026-08-17";
 
   src = fetchFromGitHub {
     owner = "MetaCubeX";
