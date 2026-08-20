@@ -25,15 +25,15 @@
   xz,
 }:
 let
-  version = "0.19.0";
+  version = "0.19.1";
   srcs = {
     x86_64-linux = {
       suffix = "linux-x86_64.deb";
-      hash = "sha256-cBGWxv5u3OGtTb3w6fQiiQz7tHe5OW9vURwJA3FU4qI=";
+      hash = "sha256-hjsuRACVo82jh87j+8x5vAyvCBgvhV6xqWCUY/y3nwM=";
     };
     aarch64-darwin = {
       suffix = "macos-aarch64.dmg";
-      hash = "sha256-sKZdnjoi/Lak4elyurerT+sUdw7DGQD0uGqrAr8Y4Xo=";
+      hash = "sha256-pmba8Npx5SSjeBePRcvSFtN3qcvizYNT/2p3sfanTao=";
     };
   };
   srcInfo =
