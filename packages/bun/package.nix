@@ -3,11 +3,11 @@
   stdenv,
   stdenvNoCC,
   runCommand,
-  callPackage,
   fetchFromGitHub,
   fetchurl,
   autoPatchelfHook,
   installShellFiles,
+  makeBinaryWrapper,
   unzip,
   cacert,
   cmake,
@@ -21,8 +21,6 @@
   ruby,
   perl,
   git,
-  gnutar,
-  gzip,
   nasm,
   which,
   rustc,
@@ -30,10 +28,6 @@
   rustPlatform,
   llvmPackages_21,
   openssl,
-  zlib,
-  libxml2,
-  libiconv,
-  icu,
 }:
 
 let
@@ -47,14 +41,7 @@ let
     hash = "sha256-2QSQwXhJDb7HQy/WuYgyWOzyS+Ic1V4VgmIE+xlcaL0=";
   };
 
-  sources = import ./sources.nix { inherit fetchurl; };
-  webkit = callPackage ./webkit.nix { inherit version; };
-  webkitDownload = {
-    name = "webkit";
-    url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-${webkit.revision}/bun-webkit-linux-amd64.tar.gz";
-    file = webkit;
-  };
-  downloads = sources.downloads ++ [ webkitDownload ];
+  downloads = import ./sources.nix { inherit fetchurl; };
   cacheKey = download: builtins.substring 0 32 (builtins.hashString "sha256" download.url);
 
   bootstrap = stdenvNoCC.mkDerivation {
@@ -116,7 +103,7 @@ let
   buildPrefetch = runCommand "bun-build-prefetch-${version}" { } ''
     mkdir -p "$out/by-url"
     ${lib.concatMapStringsSep "\n" (download: ''
-      ln -s ${download.file} "$out/by-url/${cacheKey download}"
+      ln -s ${download} "$out/by-url/${cacheKey download}"
     '') downloads}
   '';
 
@@ -134,6 +121,7 @@ stdenv.mkDerivation {
   nativeBuildInputs = [
     bootstrap
     installShellFiles
+    makeBinaryWrapper
     cmake
     ninja
     pkg-config
@@ -145,8 +133,6 @@ stdenv.mkDerivation {
     ruby
     perl
     git
-    gnutar
-    gzip
     unzip
     nasm
     which
@@ -155,14 +141,6 @@ stdenv.mkDerivation {
     llvmPackages_21.lld
     rustc
     cargo
-  ];
-
-  buildInputs = [
-    openssl
-    zlib
-    libxml2
-    libiconv
-    icu
   ];
 
   strictDeps = true;
@@ -179,27 +157,24 @@ stdenv.mkDerivation {
   LD = lib.getExe' llvmPackages_21.lld "ld.lld";
 
   postPatch = ''
+    # Dependencies are already provided by the fixed-output nodeModules.
     substituteInPlace scripts/build/codegen.ts \
       --replace-fail 'cd $dir && ''${bun} install --frozen-lockfile && ''${touch} $stamp' \
                      'touch $stamp'
+    # nixpkgs Rust uses its prebuilt standard library and supports a different lint set.
     substituteInPlace scripts/build/rust.ts \
       --replace-fail 'if (tier3 || cfg.release || cfg.asan)' 'if (tier3 || cfg.asan)' \
       --replace-fail 'const rustflags: string[] = [];' 'const rustflags: string[] = ["-Aunknown-lints"];'
+    # nixpkgs LLVM 21 does not support zstd-compressed debug information.
     substituteInPlace scripts/build/flags.ts \
       --replace-fail '"-gz=zstd"' '"-gz=zlib"'
-    # The source-built WebKit uses nixpkgs ICU instead of bundled static ICU.
-    substituteInPlace scripts/build/deps/webkit.ts \
-      --replace-fail 'return ["lib/libicudata.a", "lib/libicui18n.a", "lib/libicuuc.a"];' 'return [];'
-    substituteInPlace scripts/build/bun.ts \
-      --replace-fail 'if (cfg.webkit === "local" && cfg.abi !== "android")' 'if (cfg.abi !== "android")' \
-      --replace-fail 'libs.push("-licudata", "-licui18n", "-licuuc");' 'libs.push("-Wl,-rpath,${lib.getLib icu}/lib", "-licudata", "-licui18n", "-licuuc");'
   '';
 
   preBuild = ''
-    cp -R ${nodeModules}/node_modules ./node_modules
-    cp -R ${nodeModules}/packages/bun-error/node_modules packages/bun-error/node_modules
-    cp -R ${nodeModules}/src/node-fallbacks/node_modules src/node-fallbacks/node_modules
-    chmod -R u+w node_modules packages/bun-error/node_modules src/node-fallbacks/node_modules
+    for nodeModulesDir in node_modules packages/bun-error/node_modules src/node-fallbacks/node_modules; do
+      cp -R "${nodeModules}/$nodeModulesDir" "$nodeModulesDir"
+      chmod -R u+w "$nodeModulesDir"
+    done
 
     export HOME="$TMPDIR/home"
     export BUN_INSTALL="$TMPDIR/bun-install"
@@ -236,6 +211,11 @@ stdenv.mkDerivation {
       --bash completions/bun.bash \
       --fish completions/bun.fish \
       --zsh completions/bun.zsh
+    # Support TinyCC and prebuilt native addons on non-FHS systems.
+    wrapProgram "$out/bin/bun" \
+      --prefix C_INCLUDE_PATH : "${lib.getDev stdenv.cc.libc}/include" \
+      --prefix LIBRARY_PATH : "${lib.getLib stdenv.cc.libc}/lib" \
+      --prefix LD_LIBRARY_PATH : "${lib.getLib stdenv.cc.cc}/lib"
 
     runHook postInstall
   '';
@@ -252,17 +232,20 @@ stdenv.mkDerivation {
       nodeModules
       buildPrefetch
       cargoDeps
-      webkit
       ;
   };
 
   meta = {
-    description = "Fast all-in-one JavaScript runtime, bundler, transpiler, and package manager";
     homepage = "https://bun.sh";
     changelog = "https://bun.sh/blog/bun-v${version}";
+    description = "Incredibly fast JavaScript runtime, bundler, transpiler and package manager – all in one";
+    longDescription = ''
+      All in one fast and easy-to-use tool. Instead of 1,000 node_modules for development, you only need Bun.
+    '';
+    sourceProvenance = with lib.sourceTypes; [ binaryNativeCode ];
     license = with lib.licenses; [
-      mit
-      lgpl21Only
+      mit # Bun core
+      lgpl21Only # JavaScriptCore and WebKit
     ];
     maintainers = [
       {
@@ -272,5 +255,7 @@ stdenv.mkDerivation {
     ];
     mainProgram = "bun";
     platforms = [ "x86_64-linux" ];
+    # https://github.com/NixOS/nixpkgs/issues/280716
+    broken = stdenvNoCC.hostPlatform.isMusl;
   };
 }
