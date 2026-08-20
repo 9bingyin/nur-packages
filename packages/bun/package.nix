@@ -42,6 +42,8 @@ let
   };
 
   downloads = import ./sources.nix { inherit fetchurl; };
+
+  # Bun stores prefetched archives under the first 32 characters of SHA-256(url).
   cacheKey = download: builtins.substring 0 32 (builtins.hashString "sha256" download.url);
 
   bootstrap = stdenvNoCC.mkDerivation {
@@ -161,20 +163,25 @@ stdenv.mkDerivation {
     substituteInPlace scripts/build/codegen.ts \
       --replace-fail 'cd $dir && ''${bun} install --frozen-lockfile && ''${touch} $stamp' \
                      'touch $stamp'
+
     # nixpkgs Rust uses its prebuilt standard library and supports a different lint set.
     substituteInPlace scripts/build/rust.ts \
       --replace-fail 'if (tier3 || cfg.release || cfg.asan)' 'if (tier3 || cfg.asan)' \
       --replace-fail 'const rustflags: string[] = [];' 'const rustflags: string[] = ["-Aunknown-lints"];'
+
     # nixpkgs LLVM 21 does not support zstd-compressed debug information.
     substituteInPlace scripts/build/flags.ts \
       --replace-fail '"-gz=zstd"' '"-gz=zlib"'
   '';
 
   preBuild = ''
-    for nodeModulesDir in node_modules packages/bun-error/node_modules src/node-fallbacks/node_modules; do
-      cp -R "${nodeModules}/$nodeModulesDir" "$nodeModulesDir"
-      chmod -R u+w "$nodeModulesDir"
-    done
+    cp -R "${nodeModules}/node_modules" node_modules
+    cp -R "${nodeModules}/packages/bun-error/node_modules" packages/bun-error/node_modules
+    cp -R "${nodeModules}/src/node-fallbacks/node_modules" src/node-fallbacks/node_modules
+    chmod -R u+w \
+      node_modules \
+      packages/bun-error/node_modules \
+      src/node-fallbacks/node_modules
 
     export HOME="$TMPDIR/home"
     export BUN_INSTALL="$TMPDIR/bun-install"
@@ -222,8 +229,23 @@ stdenv.mkDerivation {
 
   doInstallCheck = true;
   installCheckPhase = ''
+    runHook preInstallCheck
+
     "$out/bin/bun" --version | grep -Fx '${version}'
-    "$out/bin/bun" -e 'console.log("bun-ok")' | grep -Fx 'bun-ok'
+
+    # Runtime, TypeScript and module loading.
+    CI=1 "$out/bin/bun" test test/cli/run/run-eval.test.ts
+
+    # Offline workspace installation.
+    CI=1 "$out/bin/bun" test test/regression/issue/3192.test.ts
+
+    # Bundling with code splitting.
+    CI=1 "$out/bin/bun" test test/regression/issue/5344.test.ts
+
+    # TinyCC compilation and signal handling through bun:ffi.
+    CI=1 "$out/bin/bun" test test/regression/issue/20144/20144.test.ts
+
+    runHook postInstallCheck
   '';
 
   passthru = {
