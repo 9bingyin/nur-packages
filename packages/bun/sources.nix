@@ -11,14 +11,8 @@ let
     };
   };
 
-  webkit =
-    download "webkit"
-      "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-amd64.tar.gz"
-      "sha256-kBh8QVPrMbP0SCGn9PRaL+NkzQGaeZj7vOnbl+AO2YM=";
 in
 {
-  inherit webkit;
-
   downloads = [
     (download "picohttpparser"
       "https://github.com/h2o/picohttpparser/archive/066d2b1e9ab820703db0837a7255d92d30f0c9f5.tar.gz"
@@ -102,6 +96,5 @@ in
     (download "nodejs-headers" "https://nodejs.org/dist/v26.3.0/node-v26.3.0-headers.tar.gz"
       "sha256-/KETxdWt2L+xqjESmiSsuNSappqzwiosxWmuyIlgUm0="
     )
-    webkit
   ];
 }

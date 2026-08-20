@@ -3,6 +3,7 @@
   stdenv,
   stdenvNoCC,
   runCommand,
+  callPackage,
   fetchFromGitHub,
   fetchurl,
   autoPatchelfHook,
@@ -47,6 +48,13 @@ let
   };
 
   sources = import ./sources.nix { inherit fetchurl; };
+  webkit = callPackage ./webkit.nix { inherit version; };
+  webkitDownload = {
+    name = "webkit";
+    url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-${webkit.revision}/bun-webkit-linux-amd64.tar.gz";
+    file = webkit;
+  };
+  downloads = sources.downloads ++ [ webkitDownload ];
   cacheKey = download: builtins.substring 0 32 (builtins.hashString "sha256" download.url);
 
   bootstrap = stdenvNoCC.mkDerivation {
@@ -109,7 +117,7 @@ let
     mkdir -p "$out/by-url"
     ${lib.concatMapStringsSep "\n" (download: ''
       ln -s ${download.file} "$out/by-url/${cacheKey download}"
-    '') sources.downloads}
+    '') downloads}
   '';
 
   cargoDeps = rustPlatform.fetchCargoVendor {
@@ -179,6 +187,12 @@ stdenv.mkDerivation {
       --replace-fail 'const rustflags: string[] = [];' 'const rustflags: string[] = ["-Aunknown-lints"];'
     substituteInPlace scripts/build/flags.ts \
       --replace-fail '"-gz=zstd"' '"-gz=zlib"'
+    # The source-built WebKit uses nixpkgs ICU instead of bundled static ICU.
+    substituteInPlace scripts/build/deps/webkit.ts \
+      --replace-fail 'return ["lib/libicudata.a", "lib/libicui18n.a", "lib/libicuuc.a"];' 'return [];'
+    substituteInPlace scripts/build/bun.ts \
+      --replace-fail 'if (cfg.webkit === "local" && cfg.abi !== "android")' 'if (cfg.abi !== "android")' \
+      --replace-fail 'libs.push("-licudata", "-licui18n", "-licuuc");' 'libs.push("-Wl,-rpath,${lib.getLib icu}/lib", "-licudata", "-licui18n", "-licuuc");'
   '';
 
   preBuild = ''
@@ -238,8 +252,8 @@ stdenv.mkDerivation {
       nodeModules
       buildPrefetch
       cargoDeps
+      webkit
       ;
-    webkit = sources.webkit.file;
   };
 
   meta = {
@@ -258,9 +272,5 @@ stdenv.mkDerivation {
     ];
     mainProgram = "bun";
     platforms = [ "x86_64-linux" ];
-    sourceProvenance = with lib.sourceTypes; [
-      fromSource
-      binaryNativeCode
-    ];
   };
 }
