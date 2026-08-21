@@ -15,6 +15,7 @@
   pkg-config,
   bison,
   gawk,
+  gperf,
   python3,
   go,
   libtool,
@@ -196,6 +197,7 @@ stdenv.mkDerivation {
     pkg-config
     bison
     gawk
+    gperf
     python3
     go
     libtool
@@ -215,6 +217,7 @@ stdenv.mkDerivation {
   ]
   ++ lib.optionals isDarwin [
     cctools
+    darwin.bootstrap_cmds
     rcodesign
   ];
 
@@ -242,6 +245,8 @@ stdenv.mkDerivation {
     ]
   );
   BUN_WEBKIT_PATH = webkitSource;
+  BUN_NIX_GPERF = lib.optionalString isDarwin (lib.getExe gperf);
+  BUN_NIX_MIG = lib.optionalString isDarwin (lib.getExe' darwin.bootstrap_cmds "mig");
   RUSTC_BOOTSTRAP = 1;
   BUN_BUILD_PREFETCH_DIR = buildPrefetch;
   CC = lib.getExe llvmPackages_21.clang;
@@ -276,7 +281,16 @@ stdenv.mkDerivation {
       --replace-fail \
         '    const args: Record<string, string> = {' \
         '    const args: Record<string, string> = {
-      ...(cfg.darwin ? { CMAKE_OSX_SYSROOT: "" } : {}),' \
+      ...(cfg.darwin
+        ? {
+            CMAKE_OSX_SYSROOT: "",
+            // JSCOnly has no Swift targets, but WebKit probes swiftc before
+            // feature selection. The path only needs to exist.
+            CMAKE_Swift_COMPILER: cfg.cc,
+            GPERF_EXECUTABLE: process.env.BUN_NIX_GPERF!,
+            Mig_EXECUTABLE: process.env.BUN_NIX_MIG!,
+          }
+        : {}),' \
       --replace-fail \
         '      ENABLE_FTL_JIT: "ON",' \
         '      ENABLE_FTL_JIT: "ON",
