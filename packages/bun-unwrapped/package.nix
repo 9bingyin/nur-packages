@@ -188,6 +188,11 @@ stdenv.mkDerivation {
   pname = "bun-unwrapped";
   inherit version src;
 
+  patches = [
+    ./nix-build-compat.patch
+    ./build-webkit-from-source.patch
+  ];
+
   # Bun 1.4.0 accepts only LLVM 21.1.x. Recheck this pin when updating Bun.
   nativeBuildInputs = [
     bootstrap
@@ -245,6 +250,7 @@ stdenv.mkDerivation {
     ]
   );
   BUN_WEBKIT_PATH = webkitSource;
+  BUN_NIX_ABI = lib.optionalString isLinux (if isMusl then "musl" else "gnu");
   BUN_NIX_GPERF = lib.optionalString isDarwin (lib.getExe gperf);
   BUN_NIX_MIG = lib.optionalString isDarwin (lib.getExe' darwin.bootstrap_cmds "mig");
   RUSTC_BOOTSTRAP = 1;
@@ -253,75 +259,6 @@ stdenv.mkDerivation {
   CXX = lib.getExe' llvmPackages_21.clang "clang++";
   AR = lib.getExe' llvmPackages_21.llvm "llvm-ar";
   RANLIB = lib.getExe' llvmPackages_21.llvm "llvm-ranlib";
-
-  postPatch = ''
-    # Dependencies are already provided by the fixed-output nodeModules.
-    substituteInPlace scripts/build/codegen.ts \
-      --replace-fail 'cd $dir && ''${bun} install --frozen-lockfile && ''${touch} $stamp' \
-                     'touch $stamp'
-
-    # nixpkgs Rust uses its prebuilt standard library and supports a different lint set.
-    substituteInPlace scripts/build/rust.ts \
-      --replace-fail 'if (tier3 || cfg.release || cfg.asan)' 'if (tier3 || cfg.asan)' \
-      --replace-fail 'const rustflags: string[] = [];' 'const rustflags: string[] = ["-Aunknown-lints"];'
-
-    # nixpkgs LLVM 21 does not support zstd-compressed debug information.
-    substituteInPlace scripts/build/flags.ts \
-      --replace-fail '"-gz=zstd"' '"-gz=zlib"'
-
-    # Bun only needs the JSC libraries and generated headers. Skip WebKit's
-    # auxiliary tools and keep source paths out of the installed executable.
-    # nixpkgs xcrun resolves SDK names through DEVELOPER_DIR, not absolute
-    # store paths. Let WebKit resolve "macosx" and restore the sysroot itself.
-    substituteInPlace scripts/build/deps/webkit.ts \
-      --replace-fail \
-        '    const optFlags: string[] = computeCpuTargetFlags(cfg);' \
-        '    const optFlags: string[] = computeCpuTargetFlags(cfg);
-    optFlags.push(`-ffile-prefix-map=''${webkitSrcDir(cfg)}/Source=vendor/WebKit/Source`);' \
-      --replace-fail \
-        '    const args: Record<string, string> = {' \
-        '    const args: Record<string, string> = {
-      ...(cfg.darwin
-        ? {
-            CMAKE_OSX_SYSROOT: "",
-            // JSCOnly has no Swift targets, but WebKit probes swiftc before
-            // feature selection. The path only needs to exist.
-            CMAKE_Swift_COMPILER: cfg.cc,
-            GPERF_EXECUTABLE: process.env.BUN_NIX_GPERF!,
-            Mig_EXECUTABLE: process.env.BUN_NIX_MIG!,
-          }
-        : {}),' \
-      --replace-fail \
-        '      ENABLE_FTL_JIT: "ON",' \
-        '      ENABLE_FTL_JIT: "ON",
-      ENABLE_TOOLS: "OFF",'
-
-    ${lib.optionalString isDarwin ''
-      # nixpkgs cctools uses ld64 directly and does not implement Apple's
-      # -ld_new linker selector. It otherwise interprets it as -l d_new.
-      substituteInPlace scripts/build/flags.ts \
-        --replace-fail '    flag: "-Wl,-ld_new",' '    flag: [],'
-    ''}
-
-    # Add the GCC runtime search path while linking so the build-time smoke test
-    # and the installed binary use the same path. DT_RPATH also applies to addons.
-    substituteInPlace scripts/build/flags.ts \
-      --replace-fail \
-        '  return { cflags, cxxflags, defines: defs, ldflags, stripflags };' \
-        '  const nixRpath = process.env.BUN_NIX_RPATH;
-    if (nixRpath) {
-      ldflags.push("-Wl,--disable-new-dtags", "-Wl,-rpath," + nixRpath);
-    }
-
-    return { cflags, cxxflags, defines: defs, ldflags, stripflags };'
-
-    ${lib.optionalString isMusl ''
-      # Bun detects musl through Alpine's marker, which is absent in Nix sandboxes.
-      substituteInPlace scripts/build/config.ts \
-        --replace-fail 'return existsSync("/etc/alpine-release") ? "musl" : "gnu";' \
-                       'return "musl";'
-    ''}
-  '';
 
   preBuild = ''
     cp -R "${nodeModules}/node_modules" node_modules
