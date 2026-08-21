@@ -266,11 +266,17 @@ stdenv.mkDerivation {
 
     # Bun only needs the JSC libraries and generated headers. Skip WebKit's
     # auxiliary tools and keep source paths out of the installed executable.
+    # nixpkgs xcrun resolves SDK names through DEVELOPER_DIR, not absolute
+    # store paths. Let WebKit resolve "macosx" and restore the sysroot itself.
     substituteInPlace scripts/build/deps/webkit.ts \
       --replace-fail \
         '    const optFlags: string[] = computeCpuTargetFlags(cfg);' \
         '    const optFlags: string[] = computeCpuTargetFlags(cfg);
     optFlags.push(`-ffile-prefix-map=''${webkitSrcDir(cfg)}/Source=vendor/WebKit/Source`);' \
+      --replace-fail \
+        '    const args: Record<string, string> = {' \
+        '    const args: Record<string, string> = {
+      ...(cfg.darwin ? { CMAKE_OSX_SYSROOT: "" } : {}),' \
       --replace-fail \
         '      ENABLE_FTL_JIT: "ON",' \
         '      ENABLE_FTL_JIT: "ON",
