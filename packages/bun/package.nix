@@ -35,6 +35,7 @@ symlinkJoin {
       cargoDeps
       webkitSource
       webkitRevision
+      updateScript
       ;
   };
 

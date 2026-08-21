@@ -373,6 +373,7 @@ stdenv.mkDerivation {
       ;
     inherit webkitSource;
     webkitRevision = webkitSource.rev;
+    updateScript = ./update.py;
   };
 
   meta = {
