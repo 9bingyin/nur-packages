@@ -25,15 +25,15 @@
   xz,
 }:
 let
-  version = "0.19.0";
+  version = "0.19.1";
   srcs = {
     x86_64-linux = {
       suffix = "linux-x86_64.deb";
-      hash = "sha256-cBGWxv5u3OGtTb3w6fQiiQz7tHe5OW9vURwJA3FU4qI=";
+      hash = "sha256-hjsuRACVo82jh87j+8x5vAyvCBgvhV6xqWCUY/y3nwM=";
     };
     aarch64-darwin = {
       suffix = "macos-aarch64.dmg";
-      hash = "sha256-sKZdnjoi/Lak4elyurerT+sUdw7DGQD0uGqrAr8Y4Xo=";
+      hash = "sha256-pmba8Npx5SSjeBePRcvSFtN3qcvizYNT/2p3sfanTao=";
     };
   };
   srcInfo =
@@ -113,9 +113,11 @@ stdenv.mkDerivation {
       ''
         runHook preInstall
 
-        install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-desktop-unwrapped
+        install -Dm755 "$(readlink -f usr/bin/longbridge-desktop)" \
+          $out/lib/longbridge-desktop/longbridge
+        cp -R usr/share $out/
 
-        makeWrapper $out/bin/.longbridge-desktop-unwrapped $out/bin/longbridge-desktop \
+        makeWrapper $out/lib/longbridge-desktop/longbridge $out/bin/longbridge-desktop \
           --prefix LD_LIBRARY_PATH : "${
             lib.makeLibraryPath [
               vulkan-loader
@@ -123,16 +125,8 @@ stdenv.mkDerivation {
             ]
           }"
 
-        install -Dm644 usr/share/icons/hicolor/512x512/apps/longbridge.png \
-          $out/share/icons/hicolor/512x512/apps/longbridge.png
-        install -Dm644 usr/share/icons/hicolor/1024x1024/apps/longbridge.png \
-          $out/share/icons/hicolor/1024x1024/apps/longbridge.png
-
-        install -Dm644 usr/share/applications/longbridge.desktop \
-          $out/share/applications/longbridge.desktop
-
-        substituteInPlace $out/share/applications/longbridge.desktop \
-          --replace-quiet "Exec=longbridge" "Exec=longbridge-desktop"
+        substituteInPlace $out/share/applications/longbridge-desktop.desktop \
+          --replace-fail "/usr/lib/longbridge-desktop/longbridge" "longbridge-desktop"
 
         runHook postInstall
       '';
