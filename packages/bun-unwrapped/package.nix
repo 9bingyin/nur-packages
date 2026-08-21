@@ -66,6 +66,16 @@ let
   bootstrapAsset =
     bootstrapAssets.${platformKey} or (throw "Unsupported Bun bootstrap platform: ${platformKey}");
 
+  # bun install selects native packages such as esbuild for the host platform.
+  nodeModulesHashes = {
+    "aarch64-darwin" = "sha256-v9ytVeJXM/WD2haOZARyacH/SoHRMYGngkbaLbTv0Ec=";
+    "aarch64-linux" = "sha256-6GuDQhc6OUMj2+ARxDkOYvpnLl9XgEVwhsphLwl+oKw=";
+    "x86_64-linux" = "sha256-BhtxdGlzP6J/3R0NlGe107dPrEHz9EcEzzGOe1rqOy8=";
+  };
+  nodeModulesHash =
+    nodeModulesHashes.${stdenv.hostPlatform.system}
+      or (throw "Unsupported Bun node_modules platform: ${stdenv.hostPlatform.system}");
+
   fixDarwinBinary =
     binary:
     lib.optionalString isDarwin ''
@@ -150,7 +160,7 @@ let
 
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-BhtxdGlzP6J/3R0NlGe107dPrEHz9EcEzzGOe1rqOy8=";
+    outputHash = nodeModulesHash;
   };
 
   buildPrefetch = runCommand "bun-build-prefetch-${version}" { } ''
