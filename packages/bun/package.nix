@@ -13,6 +13,7 @@
   cmake,
   ninja,
   pkg-config,
+  patchelf,
   python3,
   go,
   libtool,
@@ -143,6 +144,7 @@ stdenv.mkDerivation {
     cmake
     ninja
     pkg-config
+    patchelf
     python3
     go
     libtool
@@ -199,6 +201,7 @@ stdenv.mkDerivation {
 
   preBuild = ''
     ${lib.optionalString isMusl ''
+      # The build runs the new Bun before installPhase can add its RPATH.
       export LD_LIBRARY_PATH="${lib.getLib stdenv.cc.cc}/lib"
     ''}
 
@@ -246,13 +249,20 @@ stdenv.mkDerivation {
       --bash completions/bun.bash \
       --fish completions/bun.fish \
       --zsh completions/bun.zsh
-    # Support TinyCC and prebuilt native addons on non-FHS systems.
+    # TinyCC needs the libc headers and libraries on non-FHS systems.
     wrapProgram "$out/bin/bun" \
       --prefix C_INCLUDE_PATH : "${lib.getDev stdenv.cc.libc}/include" \
-      --prefix LIBRARY_PATH : "${lib.getLib stdenv.cc.libc}/lib" \
-      --prefix LD_LIBRARY_PATH : "${lib.getLib stdenv.cc.cc}/lib"
+      --prefix LIBRARY_PATH : "${lib.getLib stdenv.cc.libc}/lib"
 
     runHook postInstall
+  '';
+
+  postFixup = ''
+    # Patch after the standard ELF fixups. DT_RPATH also applies to C++ addons
+    # loaded with dlopen(), without leaking LD_LIBRARY_PATH to child processes.
+    patchelf --force-rpath \
+      --set-rpath "${lib.getLib stdenv.cc.cc}/lib" \
+      "$out/bin/.bun-wrapped"
   '';
 
   doInstallCheck = true;
