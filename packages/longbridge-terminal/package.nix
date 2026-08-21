@@ -20,6 +20,11 @@ rustPlatform.buildRustPackage rec {
     export HOME=$(mktemp -d)
   '';
 
+  cargoTestFlags = [
+    # Upstream expects the debug-only /debug command in a release-profile test.
+    "--skip=ai::tui::tests::every_name_and_alias_resolves"
+  ];
+
   meta = with lib; {
     description = "AI-native CLI for the Longbridge trading platform";
     homepage = "https://github.com/longbridge/longbridge-terminal";
