@@ -27,6 +27,7 @@
   rustPlatform,
   llvmPackages_21,
   openssl,
+  sqlite,
   cctools,
   darwin,
   rcodesign,
@@ -209,7 +210,12 @@ stdenv.mkDerivation {
     rcodesign
   ];
 
-  buildInputs = lib.optionals isDarwin [ darwin.ICU ];
+  # nixpkgs removes SQLite headers from apple-sdk. Bun uses the header while
+  # compiling, then loads macOS libsqlite3.dylib at runtime.
+  buildInputs = lib.optionals isDarwin [
+    darwin.ICU
+    (lib.getDev sqlite)
+  ];
 
   strictDeps = true;
   dontConfigure = true;
