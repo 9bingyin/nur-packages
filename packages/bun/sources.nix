@@ -1,4 +1,4 @@
-{ fetchurl }:
+{ fetchurl, isMusl }:
 
 # Bun's URL-keyed cache consumes the original archives. fetchFromGitHub would
 # unpack them, so keep these inputs as separate fetchurl derivations.
@@ -93,8 +93,14 @@ in
   (download "nodejs-headers" "https://nodejs.org/dist/v26.3.0/node-v26.3.0-headers.tar.gz"
     "sha256-/KETxdWt2L+xqjESmiSsuNSappqzwiosxWmuyIlgUm0="
   )
-  (download "webkit"
-    "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-amd64.tar.gz"
-    "sha256-kBh8QVPrMbP0SCGn9PRaL+NkzQGaeZj7vOnbl+AO2YM="
+  (
+    if isMusl then
+      download "webkit"
+        "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-amd64-musl.tar.gz"
+        "sha256-P5gEY3gS2AhdzRwTMynfbcU9jOm4EmFEuohbtCmow6g="
+    else
+      download "webkit"
+        "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-amd64.tar.gz"
+        "sha256-kBh8QVPrMbP0SCGn9PRaL+NkzQGaeZj7vOnbl+AO2YM="
   )
 ]

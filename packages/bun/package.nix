@@ -33,6 +33,19 @@
 let
   version = "1.4.0";
   revision = "34cbb9a40b4bd1bd767d134a7065e66c2432a676";
+  isMusl = stdenv.hostPlatform.isMusl;
+
+  bootstrapAsset =
+    if isMusl then
+      {
+        name = "bun-linux-x64-musl-baseline";
+        hash = "sha256-YYxLwflLAjN+4hAAPAt8Bm8RVIqM3FEJ3xDbBD3EfKI=";
+      }
+    else
+      {
+        name = "bun-linux-x64-baseline";
+        hash = "sha256-GE+0WV8NQBohfPfHjBvEMLqDMU2reouUgFurv3+nCX8=";
+      };
 
   src = fetchFromGitHub {
     owner = "oven-sh";
@@ -41,7 +54,7 @@ let
     hash = "sha256-2QSQwXhJDb7HQy/WuYgyWOzyS+Ic1V4VgmIE+xlcaL0=";
   };
 
-  downloads = import ./sources.nix { inherit fetchurl; };
+  downloads = import ./sources.nix { inherit fetchurl isMusl; };
 
   # Bun stores prefetched archives under the first 32 characters of SHA-256(url).
   cacheKey = download: builtins.substring 0 32 (builtins.hashString "sha256" download.url);
@@ -51,16 +64,19 @@ let
     inherit version;
 
     src = fetchurl {
-      url = "https://github.com/oven-sh/bun/releases/download/bun-v${version}/bun-linux-x64-baseline.zip";
-      hash = "sha256-GE+0WV8NQBohfPfHjBvEMLqDMU2reouUgFurv3+nCX8=";
+      url = "https://github.com/oven-sh/bun/releases/download/bun-v${version}/${bootstrapAsset.name}.zip";
+      inherit (bootstrapAsset) hash;
     };
-    sourceRoot = "bun-linux-x64-baseline";
+    sourceRoot = bootstrapAsset.name;
 
     nativeBuildInputs = [
       unzip
       autoPatchelfHook
     ];
-    buildInputs = [ openssl ];
+    buildInputs = [
+      openssl
+      stdenv.cc.cc.lib
+    ];
 
     installPhase = ''
       install -Dm755 bun "$out/bin/bun"
@@ -172,9 +188,20 @@ stdenv.mkDerivation {
     # nixpkgs LLVM 21 does not support zstd-compressed debug information.
     substituteInPlace scripts/build/flags.ts \
       --replace-fail '"-gz=zstd"' '"-gz=zlib"'
+
+    ${lib.optionalString isMusl ''
+      # Bun detects musl through Alpine's marker, which is absent in Nix sandboxes.
+      substituteInPlace scripts/build/config.ts \
+        --replace-fail 'return existsSync("/etc/alpine-release") ? "musl" : "gnu";' \
+                       'return "musl";'
+    ''}
   '';
 
   preBuild = ''
+    ${lib.optionalString isMusl ''
+      export LD_LIBRARY_PATH="${lib.getLib stdenv.cc.cc}/lib"
+    ''}
+
     cp -R "${nodeModules}/node_modules" node_modules
     cp -R "${nodeModules}/packages/bun-error/node_modules" packages/bun-error/node_modules
     cp -R "${nodeModules}/src/node-fallbacks/node_modules" src/node-fallbacks/node_modules
@@ -201,6 +228,7 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
     bun scripts/build.ts \
+      --abi=${if isMusl then "musl" else "gnu"} \
       --profile=release \
       --canary=off \
       --static-libatomic=off \
@@ -277,7 +305,5 @@ stdenv.mkDerivation {
     ];
     mainProgram = "bun";
     platforms = [ "x86_64-linux" ];
-    # https://github.com/NixOS/nixpkgs/issues/280716
-    broken = stdenvNoCC.hostPlatform.isMusl;
   };
 }
