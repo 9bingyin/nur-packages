@@ -25,7 +25,7 @@ index 5a20204..01dd8ed 100644
  }
 
 diff --git a/scripts/build/flags.ts b/scripts/build/flags.ts
-index 184aa86..1bf4b9c 100644
+index 184aa86..da96824 100644
 --- a/scripts/build/flags.ts
 +++ b/scripts/build/flags.ts
 @@ -300,12 +300,12 @@ export const globalFlags: Flag[] = [
@@ -44,16 +44,22 @@ index 184aa86..1bf4b9c 100644
      when: c => c.unix && c.release && !c.lto,
      desc: "Full debug info (types and variables) where no LTO link has to carry it: local release, asan, the non-LTO CI lanes",
    },
-@@ -1089,7 +1089,7 @@ export const linkerFlags: Flag[] = [
-     // -ld_new selects Apple's new linker — only meaningful (and only
-     // understood) when Apple's ld driver does the link. ld64.lld (the
-     // cross-link path) parses it as `-l d_new` and fails.
--    flag: "-Wl,-ld_new",
-+    flag: [],
-     when: c => c.darwin && c.crossTarget === undefined,
-     desc: "Use new Apple linker (native darwin links only)",
+@@ -1085,14 +1085,6 @@ export const linkerFlags: Flag[] = [
+     when: c => c.darwin && c.crossTarget !== undefined && c.release,
+     desc: "macOS cross-link: fold identical address-insignificant functions",
    },
-@@ -1767,6 +1767,11 @@ export function computeFlags(cfg: Config): ComputedFlags {
+-  {
+-    // -ld_new selects Apple's new linker — only meaningful (and only
+-    // understood) when Apple's ld driver does the link. ld64.lld (the
+-    // cross-link path) parses it as `-l d_new` and fails.
+-    flag: "-Wl,-ld_new",
+-    when: c => c.darwin && c.crossTarget === undefined,
+-    desc: "Use new Apple linker (native darwin links only)",
+-  },
+   {
+     // Cross-link from a non-darwin host: same pattern as Android/FreeBSD —
+     // target triple + explicit linker. -isysroot is added by the deployment-
+@@ -1767,6 +1759,11 @@ export function computeFlags(cfg: Config): ComputedFlags {
      stripflags.push(...resolveFlagValue(f.flag, cfg));
    }
 
@@ -66,10 +72,10 @@ index 184aa86..1bf4b9c 100644
  }
 
 diff --git a/scripts/build/rust.ts b/scripts/build/rust.ts
-index 5b7872b..d2ad673 100644
+index 5b7872b..2308113 100644
 --- a/scripts/build/rust.ts
 +++ b/scripts/build/rust.ts
-@@ -414,7 +414,7 @@ export function cargoBuildInvocation(cfg: Config): CargoInvocation {
+@@ -414,14 +414,9 @@ export function cargoBuildInvocation(cfg: Config): CargoInvocation {
      profile.name,
      "--locked",
    ];
@@ -77,8 +83,15 @@ index 5b7872b..d2ad673 100644
 +  if (tier3 || cfg.asan) {
      // Rebuild std from source (cargoBuildStdArg) because:
      // tier3:   no prebuilt `rust-std` exists.
-     // release: prebuilt std is native code built for generic x86-64 with no
-@@ -438,7 +438,7 @@ export function cargoBuildInvocation(cfg: Config): CargoInvocation {
+-    // release: prebuilt std is native code built for generic x86-64 with no
+-    //          `.llvm_addrsig`. Rebuilding with our RUSTFLAGS gets it
+-    //          `-Ctarget-cpu=` (AVX2/BMI in core::str / hashbrown), and under
+-    //          `cfg.lto` it becomes bitcode that joins the cross-language LTO
+-    //          unit + safe ICF instead of being an opaque blob in the link.
+     // asan:    prebuilt std is uninstrumented; rebuilding applies
+     //          `-Zsanitizer=address` so OOB/UAF inside Vec/String/HashMap are
+     //          visible instead of stopping at the std boundary.
+@@ -438,7 +433,7 @@ export function cargoBuildInvocation(cfg: Config): CargoInvocation {
 
    // ─── rustflags ───
    // CARGO_ENCODED_RUSTFLAGS: U+001F-separated so multi-arg flags survive.
