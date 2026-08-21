@@ -33,6 +33,8 @@ symlinkJoin {
       nodeModules
       buildPrefetch
       cargoDeps
+      webkitSource
+      webkitRevision
       ;
   };
 

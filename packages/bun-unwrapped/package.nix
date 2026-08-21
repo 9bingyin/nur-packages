@@ -4,6 +4,7 @@
   stdenvNoCC,
   runCommand,
   fetchFromGitHub,
+  fetchgit,
   fetchurl,
   autoPatchelfHook,
   installShellFiles,
@@ -12,6 +13,8 @@
   cmake,
   ninja,
   pkg-config,
+  bison,
+  gawk,
   python3,
   go,
   libtool,
@@ -27,6 +30,8 @@
   rustPlatform,
   llvmPackages_21,
   openssl,
+  icu,
+  libxml2,
   sqlite,
   cctools,
   darwin,
@@ -40,6 +45,7 @@ let
   isDarwin = stdenv.hostPlatform.isDarwin;
   isMusl = stdenv.hostPlatform.isMusl;
   platformKey = stdenv.hostPlatform.system + lib.optionalString isMusl "-musl";
+  webkitSource = import ./webkit.nix { inherit fetchgit; };
 
   bootstrapAssets = {
     "aarch64-darwin" = {
@@ -92,7 +98,7 @@ let
     hash = "sha256-2QSQwXhJDb7HQy/WuYgyWOzyS+Ic1V4VgmIE+xlcaL0=";
   };
 
-  downloads = import ./sources.nix { inherit fetchurl platformKey; };
+  downloads = import ./sources.nix { inherit fetchurl; };
 
   # Bun stores prefetched archives under the first 32 characters of SHA-256(url).
   cacheKey = download: builtins.substring 0 32 (builtins.hashString "sha256" download.url);
@@ -188,6 +194,8 @@ stdenv.mkDerivation {
     cmake
     ninja
     pkg-config
+    bison
+    gawk
     python3
     go
     libtool
@@ -212,7 +220,11 @@ stdenv.mkDerivation {
 
   # nixpkgs removes SQLite headers from apple-sdk. Bun uses the header while
   # compiling, then loads macOS libsqlite3.dylib at runtime.
-  buildInputs = lib.optionals isDarwin [
+  buildInputs = [
+    libxml2
+  ]
+  ++ lib.optionals isLinux [ icu ]
+  ++ lib.optionals isDarwin [
     darwin.ICU
     (lib.getDev sqlite)
   ];
@@ -223,7 +235,13 @@ stdenv.mkDerivation {
   hardeningDisable = [ "fortify" ];
 
   GIT_SHA = revision;
-  BUN_NIX_RPATH = lib.optionalString isLinux "${lib.getLib stdenv.cc.cc}/lib";
+  BUN_NIX_RPATH = lib.optionalString isLinux (
+    lib.makeLibraryPath [
+      stdenv.cc.cc
+      icu
+    ]
+  );
+  BUN_WEBKIT_PATH = webkitSource;
   RUSTC_BOOTSTRAP = 1;
   BUN_BUILD_PREFETCH_DIR = buildPrefetch;
   CC = lib.getExe llvmPackages_21.clang;
@@ -245,6 +263,18 @@ stdenv.mkDerivation {
     # nixpkgs LLVM 21 does not support zstd-compressed debug information.
     substituteInPlace scripts/build/flags.ts \
       --replace-fail '"-gz=zstd"' '"-gz=zlib"'
+
+    # Bun only needs the JSC libraries and generated headers. Skip WebKit's
+    # auxiliary tools and keep source paths out of the installed executable.
+    substituteInPlace scripts/build/deps/webkit.ts \
+      --replace-fail \
+        '    const optFlags: string[] = computeCpuTargetFlags(cfg);' \
+        '    const optFlags: string[] = computeCpuTargetFlags(cfg);
+    optFlags.push(`-ffile-prefix-map=''${webkitSrcDir(cfg)}/Source=vendor/WebKit/Source`);' \
+      --replace-fail \
+        '      ENABLE_FTL_JIT: "ON",' \
+        '      ENABLE_FTL_JIT: "ON",
+      ENABLE_TOOLS: "OFF",'
 
     ${lib.optionalString isDarwin ''
       # nixpkgs cctools uses ld64 directly and does not implement Apple's
@@ -303,6 +333,7 @@ stdenv.mkDerivation {
     buildArgs=(
       --profile=release
       --canary=off
+      --webkit=local
       --static-libatomic=off
       --cache-dir="$TMPDIR/bun-build-cache"
       -j"$NIX_BUILD_CORES"
@@ -336,6 +367,23 @@ stdenv.mkDerivation {
 
     "$out/bin/bun" --version | grep -Fx '${version}'
 
+    # JavaScriptCore and ICU. The upstream libc probe hardcodes /usr/lib/libc.so
+    # on musl, which does not exist in Nix; keep the other 32 Intl tests.
+    ${lib.optionalString isMusl ''
+      CI=1 "$out/bin/bun" test test/js/web/intl/intl.test.ts \
+        --test-name-pattern='^(?!.*default locale under C\.UTF-8).*$'
+    ''}
+    ${lib.optionalString (!isMusl) ''
+      CI=1 "$out/bin/bun" test test/js/web/intl/intl.test.ts
+    ''}
+
+    # JIT, WebAssembly, SQLite and compiled executables.
+    CI=1 "$out/bin/bun" test \
+      test/regression/issue/32793.test.ts \
+      test/regression/issue/14709.test.ts \
+      test/js/web/fetch/wasm-streaming.test.ts \
+      test/bundler/bun-build-compile-wasm.test.ts
+
     # Runtime, TypeScript and module loading.
     CI=1 "$out/bin/bun" test test/cli/run/run-eval.test.ts
 
@@ -366,6 +414,8 @@ stdenv.mkDerivation {
       buildPrefetch
       cargoDeps
       ;
+    inherit webkitSource;
+    webkitRevision = webkitSource.rev;
   };
 
   meta = {
@@ -375,7 +425,6 @@ stdenv.mkDerivation {
     longDescription = ''
       All in one fast and easy-to-use tool. Instead of 1,000 node_modules for development, you only need Bun.
     '';
-    sourceProvenance = with lib.sourceTypes; [ binaryNativeCode ];
     license = with lib.licenses; [
       mit # Bun core
       lgpl21Only # JavaScriptCore and WebKit

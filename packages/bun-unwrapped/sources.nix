@@ -1,4 +1,4 @@
-{ fetchurl, platformKey }:
+{ fetchurl }:
 
 # Bun's URL-keyed cache consumes the original archives. fetchFromGitHub would
 # unpack them, so keep these inputs as separate fetchurl derivations.
@@ -9,32 +9,6 @@ let
       inherit url hash;
       name = "bun-${name}.tar.gz";
     };
-
-  webkitAssets = {
-    "aarch64-darwin" = {
-      url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-macos-arm64.tar.gz";
-      hash = "sha256-EVMKVBESsg8PqyAlDkva35kk+YpkgyRP9ptLzDzOqro=";
-    };
-    "aarch64-linux" = {
-      url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-arm64.tar.gz";
-      hash = "sha256-4sbBUJm1Io6og7ZvDpqH3kplQRG4ITIJLdhJEZU+YoI=";
-    };
-    "aarch64-linux-musl" = {
-      url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-arm64-musl.tar.gz";
-      hash = "sha256-6j45nZ86aQIjH3vBSmS9bDNkA7HcPbY6M4ptsy+C/wA=";
-    };
-    "x86_64-linux" = {
-      url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-amd64.tar.gz";
-      hash = "sha256-kBh8QVPrMbP0SCGn9PRaL+NkzQGaeZj7vOnbl+AO2YM=";
-    };
-    "x86_64-linux-musl" = {
-      url = "https://github.com/oven-sh/WebKit/releases/download/autobuild-0f966e81b78c84bb23213e391bc679c4ef83e56b/bun-webkit-linux-amd64-musl.tar.gz";
-      hash = "sha256-P5gEY3gS2AhdzRwTMynfbcU9jOm4EmFEuohbtCmow6g=";
-    };
-  };
-
-  webkitAsset =
-    webkitAssets.${platformKey} or (throw "Unsupported Bun WebKit platform: ${platformKey}");
 in
 [
   (download "picohttpparser"
@@ -119,5 +93,4 @@ in
   (download "nodejs-headers" "https://nodejs.org/dist/v26.3.0/node-v26.3.0-headers.tar.gz"
     "sha256-/KETxdWt2L+xqjESmiSsuNSappqzwiosxWmuyIlgUm0="
   )
-  (download "webkit" webkitAsset.url webkitAsset.hash)
 ]
