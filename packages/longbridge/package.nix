@@ -113,9 +113,11 @@ stdenv.mkDerivation {
       ''
         runHook preInstall
 
-        install -Dm755 usr/local/bin/longbridge $out/bin/.longbridge-desktop-unwrapped
+        install -Dm755 "$(readlink -f usr/bin/longbridge-desktop)" \
+          $out/lib/longbridge-desktop/longbridge
+        cp -R usr/share $out/
 
-        makeWrapper $out/bin/.longbridge-desktop-unwrapped $out/bin/longbridge-desktop \
+        makeWrapper $out/lib/longbridge-desktop/longbridge $out/bin/longbridge-desktop \
           --prefix LD_LIBRARY_PATH : "${
             lib.makeLibraryPath [
               vulkan-loader
@@ -123,16 +125,8 @@ stdenv.mkDerivation {
             ]
           }"
 
-        install -Dm644 usr/share/icons/hicolor/512x512/apps/longbridge.png \
-          $out/share/icons/hicolor/512x512/apps/longbridge.png
-        install -Dm644 usr/share/icons/hicolor/1024x1024/apps/longbridge.png \
-          $out/share/icons/hicolor/1024x1024/apps/longbridge.png
-
-        install -Dm644 usr/share/applications/longbridge.desktop \
-          $out/share/applications/longbridge.desktop
-
-        substituteInPlace $out/share/applications/longbridge.desktop \
-          --replace-quiet "Exec=longbridge" "Exec=longbridge-desktop"
+        substituteInPlace $out/share/applications/longbridge-desktop.desktop \
+          --replace-fail "/usr/lib/longbridge-desktop/longbridge" "longbridge-desktop"
 
         runHook postInstall
       '';
