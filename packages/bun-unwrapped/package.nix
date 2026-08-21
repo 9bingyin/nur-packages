@@ -27,24 +27,52 @@
   rustPlatform,
   llvmPackages_21,
   openssl,
+  cctools,
+  darwin,
+  rcodesign,
 }:
 
 let
   version = "1.4.0";
   revision = "34cbb9a40b4bd1bd767d134a7065e66c2432a676";
+  isLinux = stdenv.hostPlatform.isLinux;
+  isDarwin = stdenv.hostPlatform.isDarwin;
   isMusl = stdenv.hostPlatform.isMusl;
+  platformKey = stdenv.hostPlatform.system + lib.optionalString isMusl "-musl";
+
+  bootstrapAssets = {
+    "aarch64-darwin" = {
+      name = "bun-darwin-aarch64";
+      hash = "sha256-xmnpf2Fk4cluBwF0jbmN+ndJKQjL2DlMdVcTSnNd44E=";
+    };
+    "aarch64-linux" = {
+      name = "bun-linux-aarch64";
+      hash = "sha256-SxozLuhhmD65O8/m93D/+U4+MbLDiL2uo8jtNeWO7Q4=";
+    };
+    "aarch64-linux-musl" = {
+      name = "bun-linux-aarch64-musl";
+      hash = "sha256-V2MAzjP/Fv/NRVvxeMLwlfnfhFxsw9AoS6HJbKDoBHM=";
+    };
+    "x86_64-linux" = {
+      name = "bun-linux-x64-baseline";
+      hash = "sha256-GE+0WV8NQBohfPfHjBvEMLqDMU2reouUgFurv3+nCX8=";
+    };
+    "x86_64-linux-musl" = {
+      name = "bun-linux-x64-musl-baseline";
+      hash = "sha256-YYxLwflLAjN+4hAAPAt8Bm8RVIqM3FEJ3xDbBD3EfKI=";
+    };
+  };
 
   bootstrapAsset =
-    if isMusl then
-      {
-        name = "bun-linux-x64-musl-baseline";
-        hash = "sha256-YYxLwflLAjN+4hAAPAt8Bm8RVIqM3FEJ3xDbBD3EfKI=";
-      }
-    else
-      {
-        name = "bun-linux-x64-baseline";
-        hash = "sha256-GE+0WV8NQBohfPfHjBvEMLqDMU2reouUgFurv3+nCX8=";
-      };
+    bootstrapAssets.${platformKey} or (throw "Unsupported Bun bootstrap platform: ${platformKey}");
+
+  fixDarwinBinary =
+    binary:
+    lib.optionalString isDarwin ''
+      '${lib.getExe' cctools "${cctools.targetPrefix}install_name_tool"}' "${binary}" \
+        -change /usr/lib/libicucore.A.dylib '${lib.getLib darwin.ICU}/lib/libicucore.A.dylib'
+      '${lib.getExe rcodesign}' sign --code-signature-flags linker-signed "${binary}"
+    '';
 
   src = fetchFromGitHub {
     owner = "oven-sh";
@@ -53,7 +81,7 @@ let
     hash = "sha256-2QSQwXhJDb7HQy/WuYgyWOzyS+Ic1V4VgmIE+xlcaL0=";
   };
 
-  downloads = import ./sources.nix { inherit fetchurl isMusl; };
+  downloads = import ./sources.nix { inherit fetchurl platformKey; };
 
   # Bun stores prefetched archives under the first 32 characters of SHA-256(url).
   cacheKey = download: builtins.substring 0 32 (builtins.hashString "sha256" download.url);
@@ -70,16 +98,24 @@ let
 
     nativeBuildInputs = [
       unzip
-      autoPatchelfHook
+    ]
+    ++ lib.optionals isLinux [ autoPatchelfHook ]
+    ++ lib.optionals isDarwin [
+      cctools
+      rcodesign
     ];
-    buildInputs = [
-      openssl
-      stdenv.cc.cc.lib
-    ];
+    buildInputs =
+      lib.optionals isLinux [
+        openssl
+        stdenv.cc.cc.lib
+      ]
+      ++ lib.optionals isDarwin [ darwin.ICU ];
 
     installPhase = ''
       install -Dm755 bun "$out/bin/bun"
     '';
+
+    postFixup = fixDarwinBinary "$out/bin/bun";
   };
 
   nodeModules = stdenvNoCC.mkDerivation {
@@ -157,22 +193,27 @@ stdenv.mkDerivation {
     llvmPackages_21.lld
     rustc
     cargo
+  ]
+  ++ lib.optionals isDarwin [
+    cctools
+    rcodesign
   ];
+
+  buildInputs = lib.optionals isDarwin [ darwin.ICU ];
 
   strictDeps = true;
   dontConfigure = true;
-  dontPatchELF = true;
+  dontPatchELF = isLinux;
   hardeningDisable = [ "fortify" ];
 
   GIT_SHA = revision;
-  BUN_NIX_RPATH = "${lib.getLib stdenv.cc.cc}/lib";
+  BUN_NIX_RPATH = lib.optionalString isLinux "${lib.getLib stdenv.cc.cc}/lib";
   RUSTC_BOOTSTRAP = 1;
   BUN_BUILD_PREFETCH_DIR = buildPrefetch;
   CC = lib.getExe llvmPackages_21.clang;
   CXX = lib.getExe' llvmPackages_21.clang "clang++";
   AR = lib.getExe' llvmPackages_21.llvm "llvm-ar";
   RANLIB = lib.getExe' llvmPackages_21.llvm "llvm-ranlib";
-  LD = lib.getExe' llvmPackages_21.lld "ld.lld";
 
   postPatch = ''
     # Dependencies are already provided by the fixed-output nodeModules.
@@ -235,13 +276,19 @@ stdenv.mkDerivation {
 
   buildPhase = ''
     runHook preBuild
-    bun scripts/build.ts \
-      --abi=${if isMusl then "musl" else "gnu"} \
-      --profile=release \
-      --canary=off \
-      --static-libatomic=off \
-      --cache-dir="$TMPDIR/bun-build-cache" \
+
+    buildArgs=(
+      --profile=release
+      --canary=off
+      --static-libatomic=off
+      --cache-dir="$TMPDIR/bun-build-cache"
       -j"$NIX_BUILD_CORES"
+    )
+    ${lib.optionalString isLinux ''
+      buildArgs+=(--abi=${if isMusl then "musl" else "gnu"})
+    ''}
+    bun scripts/build.ts "''${buildArgs[@]}"
+
     runHook postBuild
   '';
 
@@ -258,6 +305,8 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
+  postFixup = fixDarwinBinary "$out/bin/bun";
+
   doInstallCheck = true;
   installCheckPhase = ''
     runHook preInstallCheck
@@ -273,11 +322,16 @@ stdenv.mkDerivation {
     # Bundling with code splitting.
     CI=1 "$out/bin/bun" test test/regression/issue/5344.test.ts
 
-    # TinyCC compilation and signal handling through bun:ffi.
-    CI=1 \
-      C_INCLUDE_PATH="${lib.getDev stdenv.cc.libc}/include" \
-      LIBRARY_PATH="${lib.getLib stdenv.cc.libc}/lib" \
-      "$out/bin/bun" test test/regression/issue/20144/20144.test.ts
+    # Native compilation and signal handling through bun:ffi.
+    ${lib.optionalString isLinux ''
+      CI=1 \
+        C_INCLUDE_PATH="${lib.getDev stdenv.cc.libc}/include" \
+        LIBRARY_PATH="${lib.getLib stdenv.cc.libc}/lib" \
+        "$out/bin/bun" test test/regression/issue/20144/20144.test.ts
+    ''}
+    ${lib.optionalString isDarwin ''
+      CI=1 "$out/bin/bun" test test/regression/issue/20144/20144.test.ts
+    ''}
 
     runHook postInstallCheck
   '';
@@ -310,6 +364,10 @@ stdenv.mkDerivation {
       }
     ];
     mainProgram = "bun";
-    platforms = [ "x86_64-linux" ];
+    platforms = [
+      "aarch64-darwin"
+      "aarch64-linux"
+      "x86_64-linux"
+    ];
   };
 }

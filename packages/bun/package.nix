@@ -15,9 +15,9 @@ symlinkJoin {
 
   paths = [ unwrapped ];
 
-  nativeBuildInputs = [ makeBinaryWrapper ];
+  nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [ makeBinaryWrapper ];
 
-  postBuild = ''
+  postBuild = lib.optionalString stdenv.hostPlatform.isLinux ''
     wrapProgram "$out/bin/bun" \
       --prefix C_INCLUDE_PATH : "${lib.getDev stdenv.cc.libc}/include" \
       --prefix LIBRARY_PATH : "${lib.getLib stdenv.cc.libc}/lib"
