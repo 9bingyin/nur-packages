@@ -20,7 +20,7 @@ rustPlatform.buildRustPackage rec {
     export HOME=$(mktemp -d)
   '';
 
-  cargoTestFlags = [
+  checkFlags = [
     # Upstream expects the debug-only /debug command in a release-profile test.
     "--skip=ai::tui::tests::every_name_and_alias_resolves"
   ];
