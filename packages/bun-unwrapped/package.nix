@@ -246,6 +246,13 @@ stdenv.mkDerivation {
     substituteInPlace scripts/build/flags.ts \
       --replace-fail '"-gz=zstd"' '"-gz=zlib"'
 
+    ${lib.optionalString isDarwin ''
+      # nixpkgs cctools uses ld64 directly and does not implement Apple's
+      # -ld_new linker selector. It otherwise interprets it as -l d_new.
+      substituteInPlace scripts/build/flags.ts \
+        --replace-fail '    flag: "-Wl,-ld_new",' '    flag: [],'
+    ''}
+
     # Add the GCC runtime search path while linking so the build-time smoke test
     # and the installed binary use the same path. DT_RPATH also applies to addons.
     substituteInPlace scripts/build/flags.ts \
