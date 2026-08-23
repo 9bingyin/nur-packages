@@ -13,6 +13,9 @@ symlinkJoin {
   pname = "bun";
   inherit (unwrapped) version;
 
+  __structuredAttrs = true;
+  strictDeps = true;
+
   paths = [ unwrapped ];
 
   nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [ makeBinaryWrapper ];

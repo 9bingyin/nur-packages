@@ -75,6 +75,8 @@ let
     bootstrapAssets.${platformKey} or (throw "Unsupported Bun bootstrap platform: ${platformKey}");
 
   # bun install selects native packages such as esbuild for the host platform.
+  # Linux installs keep both glibc and musl variants, so the hash only differs
+  # by system and CPU architecture.
   nodeModulesHashes = {
     "aarch64-darwin" = "sha256-v9ytVeJXM/WD2haOZARyacH/SoHRMYGngkbaLbTv0Ec=";
     "aarch64-linux" = "sha256-6GuDQhc6OUMj2+ARxDkOYvpnLl9XgEVwhsphLwl+oKw=";
@@ -95,7 +97,7 @@ let
   src = fetchFromGitHub {
     owner = "oven-sh";
     repo = "bun";
-    rev = "bun-v${version}";
+    rev = revision;
     hash = "sha256-2QSQwXhJDb7HQy/WuYgyWOzyS+Ic1V4VgmIE+xlcaL0=";
   };
 
@@ -114,6 +116,7 @@ let
     };
     sourceRoot = bootstrapAsset.name;
 
+    strictDeps = true;
     nativeBuildInputs = [
       unzip
     ]
@@ -129,8 +132,15 @@ let
       ]
       ++ lib.optionals isDarwin [ darwin.ICU ];
 
+    dontConfigure = true;
+    dontBuild = true;
+
     installPhase = ''
+      runHook preInstall
+
       install -Dm755 bun "$out/bin/bun"
+
+      runHook postInstall
     '';
 
     postFixup = fixDarwinBinary "$out/bin/bun";
@@ -140,6 +150,7 @@ let
     pname = "bun-node-modules";
     inherit version src;
 
+    strictDeps = true;
     nativeBuildInputs = [
       bootstrap
       cacert
@@ -148,6 +159,8 @@ let
     dontFixup = true;
 
     buildPhase = ''
+      runHook preBuild
+
       export HOME="$TMPDIR/home"
       export BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-cache"
       mkdir -p "$HOME" "$BUN_INSTALL_CACHE_DIR"
@@ -155,15 +168,21 @@ let
       for packageDir in . packages/bun-error src/node-fallbacks; do
         (cd "$packageDir" && bun install --frozen-lockfile)
       done
+
+      runHook postBuild
     '';
 
     installPhase = ''
+      runHook preInstall
+
       mkdir -p "$out"
       cp -R --parents \
         node_modules \
         packages/bun-error/node_modules \
         src/node-fallbacks/node_modules \
         "$out"
+
+      runHook postInstall
     '';
 
     outputHashMode = "recursive";
@@ -188,9 +207,19 @@ stdenv.mkDerivation {
   pname = "bun-unwrapped";
   inherit version src;
 
+  __structuredAttrs = true;
+
   patches = [
-    ./nix-build-compat.patch
+    # Keep dependency installation offline and expose Nix-specific ABI,
+    # toolchain, and runtime search path settings to Bun's build script.
+    ./support-nix-build-environment.patch
+
+    # Build only the WebKit libraries linked into Bun from the pinned source.
     ./build-webkit-from-source.patch
+
+    # Keep the standalone graph segment last when linking natively on Darwin.
+    # https://github.com/oven-sh/bun/issues/40107
+    ./fix-darwin-standalone-segment-order.patch
   ];
 
   # Bun 1.4.0 accepts only LLVM 21.1.x. Recheck this pin when updating Bun.
@@ -237,28 +266,41 @@ stdenv.mkDerivation {
     (lib.getDev sqlite)
   ];
 
+  # Executables produced by `bun build --compile` link against ICU. Propagate
+  # its library output so downstream fixup hooks can resolve that dependency.
+  propagatedBuildInputs = lib.optionals isLinux [ (lib.getLib icu) ];
+
   strictDeps = true;
   dontConfigure = true;
+
+  # patchelf breaks executables produced by `bun build --compile`. The Nix
+  # compiler wrapper sets the interpreter, and Bun's build sets the RPATH.
   dontPatchELF = isLinux;
+
+  # Bun controls _FORTIFY_SOURCE in its own build flags.
   hardeningDisable = [ "fortify" ];
 
-  GIT_SHA = revision;
-  BUN_NIX_RPATH = lib.optionalString isLinux (
-    lib.makeLibraryPath [
-      stdenv.cc.cc
-      icu
-    ]
-  );
-  BUN_WEBKIT_PATH = webkitSource;
-  BUN_NIX_ABI = lib.optionalString isLinux (if isMusl then "musl" else "gnu");
-  BUN_NIX_GPERF = lib.optionalString isDarwin (lib.getExe gperf);
-  BUN_NIX_MIG = lib.optionalString isDarwin (lib.getExe' darwin.bootstrap_cmds "mig");
-  RUSTC_BOOTSTRAP = 1;
-  BUN_BUILD_PREFETCH_DIR = buildPrefetch;
-  CC = lib.getExe llvmPackages_21.clang;
-  CXX = lib.getExe' llvmPackages_21.clang "clang++";
-  AR = lib.getExe' llvmPackages_21.llvm "llvm-ar";
-  RANLIB = lib.getExe' llvmPackages_21.llvm "llvm-ranlib";
+  env = {
+    GIT_SHA = revision;
+    BUN_NIX_RPATH = lib.optionalString isLinux (
+      lib.makeLibraryPath [
+        stdenv.cc.cc
+        icu
+      ]
+    );
+    BUN_WEBKIT_PATH = webkitSource;
+    BUN_NIX_ABI = lib.optionalString isLinux (if isMusl then "musl" else "gnu");
+    BUN_NIX_GPERF = lib.optionalString isDarwin (lib.getExe gperf);
+    BUN_NIX_MIG = lib.optionalString isDarwin (lib.getExe' darwin.bootstrap_cmds "mig");
+
+    # Upstream uses nightly-only Rust compiler options.
+    RUSTC_BOOTSTRAP = 1;
+    BUN_BUILD_PREFETCH_DIR = buildPrefetch;
+    CC = lib.getExe llvmPackages_21.clang;
+    CXX = lib.getExe' llvmPackages_21.clang "clang++";
+    AR = lib.getExe' llvmPackages_21.llvm "llvm-ar";
+    RANLIB = lib.getExe' llvmPackages_21.llvm "llvm-ranlib";
+  };
 
   preBuild = ''
     cp -R "${nodeModules}/node_modules" node_modules
@@ -394,10 +436,6 @@ stdenv.mkDerivation {
       }
     ];
     mainProgram = "bun";
-    platforms = [
-      "aarch64-darwin"
-      "aarch64-linux"
-      "x86_64-linux"
-    ];
+    platforms = builtins.attrNames nodeModulesHashes;
   };
 }

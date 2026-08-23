@@ -30,6 +30,7 @@ BOOTSTRAP_ASSETS = {
     "x86_64-linux-musl": "bun-linux-x64-musl-baseline",
 }
 
+# Bun keeps both glibc and musl optional dependencies for Linux targets.
 NODE_MODULE_TARGETS = {
     "aarch64-darwin": ("darwin", "arm64"),
     "aarch64-linux": ("linux", "arm64"),
@@ -345,10 +346,10 @@ def node_modules_hashes(source: Path, bootstrap: Path) -> dict[str, str]:
     hashes: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="bun-update-node-modules-") as temp:
         temporary = Path(temp)
-        cache = temporary / "cache"
-        cache.mkdir()
 
         for platform, (operating_system, cpu) in NODE_MODULE_TARGETS.items():
+            cache = temporary / f"cache-{platform}"
+            cache.mkdir()
             package_source = temporary / platform
             run(["cp", "-R", "--reflink=auto", str(source), str(package_source)])
             run(["chmod", "-R", "u+w", str(package_source)])
@@ -483,7 +484,7 @@ def main() -> None:
         return
 
     source_hash, source = prefetch_file(
-        f"https://github.com/oven-sh/bun/archive/bun-v{target}.tar.gz",
+        f"https://github.com/oven-sh/bun/archive/{tags[target]}.tar.gz",
         unpack=True,
     )
     validate_llvm_version(source)
