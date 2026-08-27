@@ -21,11 +21,15 @@ jobs:
       base-branch: ${{ steps.prepare.outputs.baseBranch }}
       files: ${{ steps.prepare.outputs.files }}
       head-branch: ${{ steps.prepare.outputs.headBranch }}
+      head-repository: ${{ steps.prepare.outputs.headRepository }}
+      head-repository-id: ${{ steps.prepare.outputs.headRepositoryId }}
       head-sha: ${{ steps.prepare.outputs.headSha }}
       matrix: ${{ steps.prepare.outputs.matrix }}
+      mergeable: ${{ steps.prepare.outputs.mergeable }}
       merged-repository: ${{ steps.prepare.outputs.mergedRepository }}
       merged-sha: ${{ steps.prepare.outputs.mergedSha }}
       systems: ${{ steps.prepare.outputs.systems }}
+      pull-request-number: ${{ steps.prepare.outputs.pullRequestNumber }}
       target-sha: ${{ steps.prepare.outputs.targetSha }}
     steps:
       - name: Checkout trusted
@@ -72,6 +76,25 @@ jobs:
       contents: read
     uses: ./.github/workflows/eval.yml
     with:
+      base-branch: ${{ needs.prepare.outputs.base-branch }}
+      head-branch: ${{ needs.prepare.outputs.head-branch }}
+      head-repository: ${{ needs.prepare.outputs.head-repository }}
+      head-repository-id: ${{ fromJSON(needs.prepare.outputs.head-repository-id) }}
+      head-sha: ${{ needs.prepare.outputs.head-sha }}
+      mergeable: ${{ fromJSON(needs.prepare.outputs.mergeable) }}
+      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      merged-sha: ${{ needs.prepare.outputs.merged-sha }}
+      pull-request-number: ${{ fromJSON(needs.prepare.outputs.pull-request-number) }}
+      systems: ${{ needs.prepare.outputs.systems }}
+      target-sha: ${{ needs.prepare.outputs.target-sha }}
+
+  lix:
+    name: Lix
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lix.yml
+    with:
       merged-repository: ${{ needs.prepare.outputs.merged-repository }}
       merged-sha: ${{ needs.prepare.outputs.merged-sha }}
       systems: ${{ needs.prepare.outputs.systems }}
@@ -95,6 +118,7 @@ jobs:
       - check
       - lint
       - eval
+      - lix
       - build
     permissions:
       contents: read
@@ -112,6 +136,7 @@ jobs:
       - check
       - lint
       - eval
+      - lix
       - build
       - review
     runs-on: ubuntu-latest

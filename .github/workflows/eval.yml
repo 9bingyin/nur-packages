@@ -3,12 +3,33 @@ name: Eval
 on:
   workflow_call:
     inputs:
+      base-branch:
+        required: true
+        type: string
+      head-branch:
+        required: true
+        type: string
+      head-repository:
+        required: true
+        type: string
+      head-repository-id:
+        required: true
+        type: number
+      head-sha:
+        required: true
+        type: string
+      mergeable:
+        required: true
+        type: boolean
       merged-repository:
         required: true
         type: string
       merged-sha:
         required: true
         type: string
+      pull-request-number:
+        required: true
+        type: number
       systems:
         required: true
         type: string
@@ -129,10 +150,59 @@ jobs:
         with:
           bun-version: 1.3.13
       - name: Compare
+        env:
+          BASE_BRANCH: ${{ inputs.base-branch }}
+          HEAD_BRANCH: ${{ inputs.head-branch }}
+          HEAD_REPOSITORY: ${{ inputs.head-repository }}
+          HEAD_REPOSITORY_ID: ${{ inputs.head-repository-id }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          MERGEABLE: ${{ inputs.mergeable }}
+          MERGED_REPOSITORY: ${{ inputs.merged-repository }}
+          MERGED_SHA: ${{ inputs.merged-sha }}
+          PULL_REQUEST_NUMBER: ${{ inputs.pull-request-number }}
+          TARGET_SHA: ${{ inputs.target-sha }}
         run: |
+          jq -n \
+            --arg baseBranch "$BASE_BRANCH" \
+            --arg baseSha "$TARGET_SHA" \
+            --arg headBranch "$HEAD_BRANCH" \
+            --arg headRepository "$HEAD_REPOSITORY" \
+            --argjson headRepositoryId "$HEAD_REPOSITORY_ID" \
+            --arg headSha "$HEAD_SHA" \
+            --argjson mergeable "$MERGEABLE" \
+            --arg mergedRepository "$MERGED_REPOSITORY" \
+            --arg mergedSha "$MERGED_SHA" \
+            --argjson pullRequestNumber "$PULL_REQUEST_NUMBER" \
+            --argjson repositoryId "$GITHUB_REPOSITORY_ID" \
+            --argjson repositoryOwnerId "$GITHUB_REPOSITORY_OWNER_ID" \
+            --argjson runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --argjson runId "$GITHUB_RUN_ID" \
+            --arg targetSha "$TARGET_SHA" \
+            --arg workflowRef "$GITHUB_WORKFLOW_REF" \
+            --arg workflowSha "$GITHUB_WORKFLOW_SHA" \
+            '{
+              baseBranch: $baseBranch,
+              baseSha: $baseSha,
+              headBranch: $headBranch,
+              headRepository: $headRepository,
+              headRepositoryId: $headRepositoryId,
+              headSha: $headSha,
+              mergeable: $mergeable,
+              mergedRepository: $mergedRepository,
+              mergedSha: $mergedSha,
+              pullRequestNumber: $pullRequestNumber,
+              repositoryId: $repositoryId,
+              repositoryOwnerId: $repositoryOwnerId,
+              runAttempt: $runAttempt,
+              runId: $runId,
+              targetSha: $targetSha,
+              workflowRef: $workflowRef,
+              workflowSha: $workflowSha
+            }' >revision.json
           bun trusted/ci/main.ts eval-compare \
             --input eval \
-            --output eval-comparison.json
+            --output eval-comparison.json \
+            --revision revision.json
       - name: Upload comparison
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

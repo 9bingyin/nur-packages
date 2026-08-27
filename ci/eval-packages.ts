@@ -45,6 +45,12 @@ type Arguments = Readonly<{
 	target: string;
 }>;
 
+type SnapshotArguments = Readonly<{
+	output: string;
+	repository: string;
+	system: string;
+}>;
+
 function parseCount(value: unknown, name: string): number {
 	if (!Number.isInteger(value) || typeof value !== "number" || value < 0) {
 		throw new Error(`${name} must be a non-negative integer`);
@@ -249,6 +255,30 @@ export function parseArguments(args: readonly string[]): Arguments {
 		);
 	}
 	return { merged, output, system, target };
+}
+
+function parseSnapshotArguments(args: readonly string[]): SnapshotArguments {
+	const values = new Map<string, string>();
+	for (let index = 0; index < args.length; index += 2) {
+		const flag = args[index];
+		const value = args[index + 1];
+		if (!flag?.startsWith("--") || value === undefined) {
+			throw new Error("Expected --repository, --system and --output arguments");
+		}
+		values.set(flag.slice(2), value);
+	}
+	const repository = values.get("repository");
+	const system = values.get("system");
+	const output = values.get("output");
+	if (!repository || !system || !output || values.size !== 3) {
+		throw new Error("Expected --repository, --system and --output arguments");
+	}
+	return { output, repository, system };
+}
+
+export async function evalSnapshot(args: readonly string[]): Promise<void> {
+	const { output, repository, system } = parseSnapshotArguments(args);
+	writeTextFile(output, prettyJson(await evaluatePackages(repository, system)));
 }
 
 export async function evalPackages(args: readonly string[]): Promise<void> {

@@ -35,10 +35,12 @@ export type Target = Readonly<{
 }>;
 
 export type MatrixItem = Readonly<{
+	artifact: string;
 	group: string;
+	requires_internet_archive: boolean;
 	runner: string;
 	system: string;
-	targets: readonly Readonly<{ current_version: string; name: string }>[];
+	target: Readonly<{ current_version: string; name: string }>;
 	type: UpdateType;
 }>;
 
@@ -176,11 +178,15 @@ export function parseFlakeInputs(
 	});
 }
 
-function matrixTargets(items: readonly Target[]): MatrixItem["targets"] {
-	return items.map(({ currentVersion, name }) => ({
-		current_version: currentVersion,
-		name,
-	}));
+function matrixTarget(target: Target): MatrixItem["target"] {
+	return {
+		current_version: target.currentVersion,
+		name: target.name,
+	};
+}
+
+function artifactName(type: UpdateType, name: string): string {
+	return `update-${type}-${name.replaceAll(/[^A-Za-z0-9_.-]/g, "-")}`;
 }
 
 export function buildMatrix(
@@ -190,32 +196,35 @@ export function buildMatrix(
 ): UpdateMatrix {
 	const include: MatrixItem[] = [];
 	for (const { runner, system } of systems) {
-		const targets = packages.filter((item) => item.system === system);
-		if (targets.length > 0) {
+		for (const target of packages.filter((item) => item.system === system)) {
 			include.push({
-				group: `package-${system}`,
+				artifact: artifactName("package", target.name),
+				group: `package-${target.name}`,
+				requires_internet_archive: target.name === "termius",
 				runner,
 				system,
-				targets: matrixTargets(targets),
+				target: matrixTarget(target),
 				type: "package",
 			});
 		}
 	}
 
-	if (flakeInputs.length > 0) {
-		const runner = systems.find(
-			({ system }) => system === "x86_64-linux",
-		)?.runner;
-		if (!runner) {
-			throw new Error(
-				"ci/systems.json must define x86_64-linux for flake input updates",
-			);
-		}
+	const runner = systems.find(
+		({ system }) => system === "x86_64-linux",
+	)?.runner;
+	if (!runner && flakeInputs.length > 0) {
+		throw new Error(
+			"ci/systems.json must define x86_64-linux for flake input updates",
+		);
+	}
+	for (const target of flakeInputs) {
 		include.push({
-			group: "flake-inputs",
-			runner,
+			artifact: artifactName("flake-input", target.name),
+			group: `flake-input-${target.name}`,
+			requires_internet_archive: false,
+			runner: runner ?? "",
 			system: "x86_64-linux",
-			targets: matrixTargets(flakeInputs),
+			target: matrixTarget(target),
 			type: "flake-input",
 		});
 	}

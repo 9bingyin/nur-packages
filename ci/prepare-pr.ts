@@ -18,6 +18,7 @@ type RepositoryRef = Readonly<{
 	label: string;
 	ref: string;
 	repo: string;
+	repoId: number;
 	sha: string;
 }>;
 
@@ -41,10 +42,15 @@ function validateSha(name: string, value: unknown): string {
 function parseRepositoryRef(value: unknown, name: string): RepositoryRef {
 	const ref = requireRecord(value, name);
 	const repository = requireRecord(ref.repo, `${name}.repo`);
+	const repoId = repository.id;
+	if (!Number.isInteger(repoId) || typeof repoId !== "number" || repoId <= 0) {
+		throw new Error(`${name}.repo.id must be a positive integer`);
+	}
 	return {
 		label: requireString(ref.label, `${name}.label`),
 		ref: requireString(ref.ref, `${name}.ref`),
 		repo: requireString(repository.full_name, `${name}.repo.full_name`),
+		repoId,
 		sha: validateSha(`${name}.sha`, ref.sha),
 	};
 }
@@ -109,19 +115,45 @@ async function pullRequestInfo(number: number): Promise<PullRequest> {
 	throw new Error("GitHub did not finish computing pull request mergeability");
 }
 
-async function firstParentSha(sha: string): Promise<string> {
+export function validateMergeParents(
+	parents: readonly string[],
+	baseSha: string,
+	headSha: string,
+): string {
+	if (parents.length !== 2) {
+		throw new Error(
+			`Merge commit must have exactly two parents, got ${parents.length}`,
+		);
+	}
+	const firstParent = parents[0];
+	const secondParent = parents[1];
+	if (firstParent !== baseSha || secondParent !== headSha) {
+		throw new Error(
+			`Merge commit parents do not match the pull request: ${parents.join(", ")}`,
+		);
+	}
+	return firstParent;
+}
+
+async function mergeTargetSha(
+	sha: string,
+	baseSha: string,
+	headSha: string,
+): Promise<string> {
 	const commit = requireRecord(
 		await githubRequest(`/repos/${githubRepository()}/commits/${sha}`),
 		"merge commit",
 	);
-	if (!Array.isArray(commit.parents) || commit.parents.length === 0) {
-		throw new Error("Merge commit has no parents");
+	if (!Array.isArray(commit.parents)) {
+		throw new Error("Merge commit parents must be an array");
 	}
-	const firstParent = requireRecord(
-		commit.parents[0],
-		"merge commit first parent",
+	const parents = commit.parents.map((parent, index) =>
+		validateSha(
+			`merge commit parent ${index}`,
+			requireRecord(parent, `merge commit parent ${index}`).sha,
+		),
 	);
-	return validateSha("targetSha", firstParent.sha);
+	return validateMergeParents(parents, baseSha, headSha);
 }
 
 async function mergeBaseSha(
@@ -188,7 +220,7 @@ export async function preparePullRequest(): Promise<void> {
 	if (pullRequest.mergeable) {
 		mergedRepository = pullRequest.base.repo;
 		mergedSha = validateSha("mergedSha", pullRequest.mergeCommitSha);
-		targetSha = await firstParentSha(mergedSha);
+		targetSha = await mergeTargetSha(mergedSha, pullRequest.base.sha, headSha);
 		console.log(
 			"The pull request is mergeable; checking its test merge commit",
 		);
@@ -215,11 +247,15 @@ export async function preparePullRequest(): Promise<void> {
 
 	writeOutput("baseBranch", pullRequest.base.ref);
 	writeOutput("headBranch", pullRequest.head.ref);
+	writeOutput("headRepository", pullRequest.head.repo);
+	writeOutput("headRepositoryId", String(pullRequest.head.repoId));
 	writeOutput("headSha", headSha);
 	writeOutput("matrix", JSON.stringify({ include: systemConfigs }));
+	writeOutput("mergeable", String(pullRequest.mergeable));
 	writeOutput("mergedRepository", mergedRepository);
 	writeOutput("mergedSha", mergedSha);
 	writeOutput("targetSha", targetSha);
 	writeOutput("systems", JSON.stringify(systems));
+	writeOutput("pullRequestNumber", String(pullRequest.number));
 	writeOutput("files", JSON.stringify(files));
 }
