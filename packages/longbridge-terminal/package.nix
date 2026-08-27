@@ -16,6 +16,8 @@ rustPlatform.buildRustPackage rec {
 
   cargoHash = "sha256-Li/SkxszkO+/4PKxIN2BJHJEM8hNOTWj31lJdDbVos0=";
 
+  __darwinAllowLocalNetworking = true;
+
   preCheck = ''
     export HOME=$(mktemp -d)
   '';
