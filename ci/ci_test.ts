@@ -16,6 +16,11 @@ import {
 import { parseSystems } from "./lib.ts";
 import { checksSucceeded } from "./publish-status.ts";
 import {
+	reviewBuildCommand,
+	reviewMarkdown,
+	selectReviewPackages,
+} from "./review.ts";
+import {
 	buildPullRequest,
 	parseCommitChanges,
 	parseTargets,
@@ -154,6 +159,39 @@ test("eval report combines systems for review", () => {
 	assert.deepEqual(report.added, ["linux-only"]);
 	assert.deepEqual(report.changed, ["shared"]);
 	assert.equal(evalReportMarkdown(report).includes("`aarch64-darwin`"), true);
+});
+
+test("review builds added and changed packages for one system", () => {
+	const report = combineEvalResults([
+		{
+			added: ["added"],
+			changed: [
+				{
+					after: { path: "/nix/store/new", version: "2" },
+					before: { path: "/nix/store/old", version: "1" },
+					name: "changed",
+				},
+			],
+			mergedCount: 2,
+			removed: ["removed"],
+			system: "aarch64-darwin",
+			targetCount: 2,
+			unchangedCount: 0,
+		},
+	]);
+	const selection = selectReviewPackages(report, "aarch64-darwin");
+	assert.deepEqual(selection.selected, ["added", "changed"]);
+	assert.equal(selection.removed[0], "removed");
+	const command = reviewBuildCommand(".", selection);
+	assert.equal(command.includes("--keep-going"), true);
+	assert.equal(
+		command.some((item) => item.endsWith('#packages.aarch64-darwin."added"')),
+		true,
+	);
+	assert.equal(
+		reviewMarkdown({ ...selection, success: true }).includes("Build | success"),
+		true,
+	);
 });
 
 test("checksSucceeded requires every job to succeed", () => {

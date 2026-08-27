@@ -3,7 +3,7 @@ name: Auto Merge Updates
 on:
   workflow_run:
     workflows:
-      - Review
+      - PR
     types:
       - completed
 
@@ -17,7 +17,8 @@ concurrency:
 jobs:
   merge:
     if: >-
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - name: Create automation token

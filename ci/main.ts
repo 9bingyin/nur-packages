@@ -6,6 +6,7 @@ import { evalCompare } from "./eval-compare.ts";
 import { evalPackages } from "./eval-packages.ts";
 import { preparePullRequest } from "./prepare-pr.ts";
 import { publishStatus } from "./publish-status.ts";
+import { review } from "./review.ts";
 import { updateTargets } from "./update.ts";
 
 function usage(): string {
@@ -20,6 +21,7 @@ function usage(): string {
 		"  eval-packages",
 		"  prepare-pr",
 		"  publish-status",
+		"  review",
 		"  update",
 	].join("\n");
 }
@@ -51,6 +53,9 @@ async function main(args: readonly string[]): Promise<void> {
 			return;
 		case "publish-status":
 			await publishStatus();
+			return;
+		case "review":
+			await review(commandArgs);
 			return;
 		case "update":
 			await updateTargets();

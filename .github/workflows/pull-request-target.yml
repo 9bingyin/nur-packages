@@ -88,6 +88,23 @@ jobs:
       merged-repository: ${{ needs.prepare.outputs.merged-repository }}
       merged-sha: ${{ needs.prepare.outputs.merged-sha }}
 
+  review:
+    name: Review
+    needs:
+      - prepare
+      - check
+      - lint
+      - eval
+      - build
+    permissions:
+      contents: read
+    uses: ./.github/workflows/review.yml
+    with:
+      matrix: ${{ needs.prepare.outputs.matrix }}
+      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      merged-sha: ${{ needs.prepare.outputs.merged-sha }}
+      target-sha: ${{ needs.prepare.outputs.target-sha }}
+
   unlock:
     name: unlock
     if: always()
@@ -96,6 +113,7 @@ jobs:
       - lint
       - eval
       - build
+      - review
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:

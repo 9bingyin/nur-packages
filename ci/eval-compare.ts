@@ -5,6 +5,7 @@ import {
 	appendStepSummary,
 	prettyJson,
 	readJsonFile,
+	requireRecord,
 	writeTextFile,
 } from "./lib.ts";
 
@@ -48,6 +49,14 @@ export function combineEvalResults(
 		removed: sortedNames(sorted, ({ removed }) => removed),
 		results: sorted,
 	};
+}
+
+export function parseEvalReport(value: unknown): EvalReport {
+	const report = requireRecord(value, "eval report");
+	if (!Array.isArray(report.results)) {
+		throw new Error("eval report.results must be an array");
+	}
+	return combineEvalResults(report.results.map(parseEvalComparison));
 }
 
 export function evalReportMarkdown(report: EvalReport): string {
