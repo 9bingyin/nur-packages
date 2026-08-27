@@ -102,15 +102,11 @@ test("merge policy downgrades manually changed bot branches", () => {
 	};
 	assert.equal(ownBotDiffAllowed("update/foo", files), true);
 	assert.equal(
-		selectMergeMode(pullRequest, reference, 1, 10, true, true, files, ""),
+		selectMergeMode(pullRequest, reference, 1, 10, true, files, ""),
 		"auto",
 	);
 	assert.equal(
-		selectMergeMode(pullRequest, reference, 1, 10, true, false, files, ""),
-		"queued",
-	);
-	assert.equal(
-		selectMergeMode(pullRequest, reference, 1, 10, false, true, files, ""),
+		selectMergeMode(pullRequest, reference, 1, 10, false, files, ""),
 		"manual",
 	);
 	assert.equal(
@@ -119,7 +115,6 @@ test("merge policy downgrades manually changed bot branches", () => {
 			reference,
 			1,
 			10,
-			true,
 			true,
 			files,
 			"",
@@ -163,8 +158,9 @@ test("nix-fast-build scans every uncached package", () => {
 	);
 });
 
-test("auto-merge requires the exact reviewed revision", () => {
+test("merge requires the exact reviewed revision", () => {
 	const expected = {
+		baseRef: "main",
 		baseSha: "1".repeat(40),
 		headSha: "2".repeat(40),
 		number: 1,
@@ -176,11 +172,19 @@ test("auto-merge requires the exact reviewed revision", () => {
 		number: 1,
 		state: "open",
 	};
-	assert.equal(pullRequestMatchesMerge(pullRequest, expected), true);
+	assert.equal(
+		pullRequestMatchesMerge(pullRequest, expected, expected.baseSha),
+		true,
+	);
+	assert.equal(
+		pullRequestMatchesMerge(pullRequest, expected, "4".repeat(40)),
+		false,
+	);
 	assert.equal(
 		pullRequestMatchesMerge(
 			{ ...pullRequest, base: { sha: "4".repeat(40) } },
 			expected,
+			expected.baseSha,
 		),
 		false,
 	);
@@ -188,6 +192,7 @@ test("auto-merge requires the exact reviewed revision", () => {
 		pullRequestMatchesMerge(
 			{ ...pullRequest, head: { sha: "4".repeat(40) } },
 			expected,
+			expected.baseSha,
 		),
 		false,
 	);

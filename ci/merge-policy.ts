@@ -38,7 +38,7 @@ const PRIVILEGED_WORKFLOWS = new Set([
 const ACTION_REFERENCE_PATTERN =
 	/^\s*uses:\s+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?)@([0-9a-f]{40})(?:\s+#.*)?$/;
 
-type MergeMode = "auto" | "manual" | "queued" | "stale";
+type MergeMode = "auto" | "manual" | "stale";
 
 type PullRequestReference = Readonly<{
 	baseRef: string;
@@ -132,6 +132,17 @@ function parsePullRequest(value: unknown): PullRequestInfo {
 	};
 }
 
+async function currentBranchSha(branch: string): Promise<string> {
+	const value = requireRecord(
+		await githubRequest(
+			`/repos/${githubRepository()}/branches/${encodeURIComponent(branch)}`,
+		),
+		"base branch",
+	);
+	const commit = requireRecord(value.commit, "base branch.commit");
+	return requireString(commit.sha, "base branch.commit.sha");
+}
+
 async function triggeringPullRequest(
 	runId: number,
 ): Promise<PullRequestReference> {
@@ -174,48 +185,6 @@ async function provenanceForHead(
 		}
 	}
 	return null;
-}
-
-async function ownBotQueueHead(
-	pullRequestNumber: number,
-	baseRef: string,
-	botUserId: number,
-	repositoryId: number,
-): Promise<boolean> {
-	const pulls = await githubRequestPages(
-		`/repos/${githubRepository()}/pulls?state=open&base=${encodeURIComponent(baseRef)}`,
-	);
-	const candidates: number[] = [];
-	for (const item of pulls) {
-		if (!isRecord(item) || !isRecord(item.user) || !isRecord(item.head)) {
-			continue;
-		}
-		const headRepository = isRecord(item.head.repo) ? item.head.repo : {};
-		const number = item.number;
-		const headSha = item.head.sha;
-		const headRef = item.head.ref;
-		if (
-			!Number.isInteger(number) ||
-			typeof number !== "number" ||
-			number <= 0 ||
-			item.draft !== false ||
-			item.user.id !== botUserId ||
-			item.user.type !== "Bot" ||
-			headRepository.id !== repositoryId ||
-			typeof headSha !== "string" ||
-			typeof headRef !== "string" ||
-			!headRef.startsWith("update/")
-		) {
-			continue;
-		}
-		const provenance = await provenanceForHead(number, headSha, botUserId);
-		if (provenance && headRef === `update/${provenance.targetName}`) {
-			candidates.push(number);
-		}
-	}
-	return (
-		candidates.sort((left, right) => left - right)[0] === pullRequestNumber
-	);
 }
 
 function regularFiles(files: ReturnType<typeof parseRawDiff>): boolean {
@@ -297,7 +266,6 @@ export function selectMergeMode(
 	repositoryId: number,
 	botUserId: number,
 	provenance: boolean,
-	queueHead: boolean,
 	files: ReturnType<typeof parseRawDiff>,
 	dependabotDiff: string,
 ): MergeMode {
@@ -318,7 +286,7 @@ export function selectMergeMode(
 		provenance &&
 		ownBotDiffAllowed(reference.headRef, files)
 	) {
-		return queueHead ? "auto" : "queued";
+		return "auto";
 	}
 	if (
 		pullRequest.userId === DEPENDABOT_USER_ID &&
@@ -432,22 +400,18 @@ export async function mergePolicy(): Promise<void> {
 		? await provenanceForHead(reference.number, reference.headSha, botUserId)
 		: null;
 	const mode = selectMergeMode(
-		pullRequest,
+		{
+			...pullRequest,
+			baseSha: await currentBranchSha(reference.baseRef),
+		},
 		reference,
 		repositoryId,
 		botUserId,
 		provenance?.baseSha === reference.baseSha,
-		ownBot
-			? await ownBotQueueHead(
-					reference.number,
-					reference.baseRef,
-					botUserId,
-					repositoryId,
-				)
-			: true,
 		files,
 		diff,
 	);
+	writeOutput("baseRef", reference.baseRef);
 	writeOutput("baseSha", reference.baseSha);
 	writeOutput("headSha", reference.headSha);
 	writeOutput("mode", mode);

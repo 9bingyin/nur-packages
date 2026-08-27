@@ -300,18 +300,30 @@ export async function refreshUpdateQueue(): Promise<void> {
 	);
 	const repositoryId = positiveInteger(repositoryRecord.id, "repository.id");
 	const baseSha = await currentBaseSha(repository, baseBranch);
-	const candidate = (
-		await queueCandidates(baseBranch, botUserId, repositoryId)
-	)[0];
-	if (candidate === undefined) {
-		console.log("No automated update PR is waiting");
+	const candidates = await queueCandidates(baseBranch, botUserId, repositoryId);
+	const stale = candidates.filter(
+		(candidate) => candidate.provenance.baseSha !== baseSha,
+	);
+	if (stale.length === 0) {
+		console.log("No stale automated update PR is waiting");
 		return;
 	}
-	if (candidate.provenance.baseSha === baseSha) {
-		console.log(
-			`Update PR #${candidate.number} is already based on current main`,
+	const failures: string[] = [];
+	for (const candidate of stale) {
+		try {
+			await refreshCandidate(repository, candidate, baseSha);
+		} catch (error) {
+			const message = `Failed to refresh PR #${candidate.number}: ${String(error)}`;
+			failures.push(message);
+			console.warn(`::warning::${message}`);
+		}
+	}
+	console.log(
+		`Refreshed ${stale.length - failures.length}/${stale.length} stale update PRs`,
+	);
+	if (failures.length > 0) {
+		throw new Error(
+			`Some update PRs could not be refreshed:\n${failures.join("\n")}`,
 		);
-		return;
 	}
-	await refreshCandidate(repository, candidate, baseSha);
 }
