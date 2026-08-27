@@ -8,11 +8,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "tinycast-bin";
-  version = "0.10.0";
+  version = "0.10.1";
 
   src = fetchurl {
     url = "https://github.com/abue-ammar/tinycast/releases/download/v${finalAttrs.version}/Tinycast-${finalAttrs.version}.dmg";
-    hash = "sha256-K5fHDW05E3MmS2PEn0Mlf83ATDKja/uW+K4aJjwxcbg=";
+    hash = "sha256-9tbm/qCxcQv6hIf8ThfpbGSYAdj+QpwFKUxCG6qRYa4=";
   };
 
   sourceRoot = ".";
