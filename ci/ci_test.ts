@@ -7,6 +7,7 @@ import {
 	parseFlakeInputs,
 	parsePackageVersions,
 } from "./discovery.ts";
+import { combineEvalResults, evalReportMarkdown } from "./eval-compare.ts";
 import {
 	comparePackages,
 	markdownSummary,
@@ -121,6 +122,38 @@ test("eval comparison reports added, removed and changed packages", () => {
 		["changed"],
 	);
 	assert.equal(markdownSummary(result).includes("### Changed packages"), true);
+});
+
+test("eval report combines systems for review", () => {
+	const report = combineEvalResults([
+		{
+			added: ["linux-only"],
+			changed: [],
+			mergedCount: 1,
+			removed: [],
+			system: "x86_64-linux",
+			targetCount: 0,
+			unchangedCount: 0,
+		},
+		{
+			added: [],
+			changed: [
+				{
+					after: { path: "/nix/store/new", version: "2" },
+					before: { path: "/nix/store/old", version: "1" },
+					name: "shared",
+				},
+			],
+			mergedCount: 1,
+			removed: [],
+			system: "aarch64-darwin",
+			targetCount: 1,
+			unchangedCount: 0,
+		},
+	]);
+	assert.deepEqual(report.added, ["linux-only"]);
+	assert.deepEqual(report.changed, ["shared"]);
+	assert.equal(evalReportMarkdown(report).includes("`aarch64-darwin`"), true);
 });
 
 test("checksSucceeded requires every job to succeed", () => {

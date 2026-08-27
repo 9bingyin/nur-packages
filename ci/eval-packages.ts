@@ -1,9 +1,10 @@
 import { realpathSync } from "node:fs";
 import {
-	appendStepSummary,
 	isRecord,
 	parseJson,
 	prettyJson,
+	requireRecord,
+	requireString,
 	run,
 	writeTextFile,
 } from "./lib.ts";
@@ -43,6 +44,74 @@ type Arguments = Readonly<{
 	system: string;
 	target: string;
 }>;
+
+function parseCount(value: unknown, name: string): number {
+	if (!Number.isInteger(value) || typeof value !== "number" || value < 0) {
+		throw new Error(`${name} must be a non-negative integer`);
+	}
+	return value;
+}
+
+function parseNames(value: unknown, name: string): readonly string[] {
+	if (!Array.isArray(value)) {
+		throw new Error(`${name} must be an array`);
+	}
+	return value.map((item, index) => requireString(item, `${name}[${index}]`));
+}
+
+function parsePackageOutput(value: unknown, name: string): PackageOutput {
+	const output = requireRecord(value, name);
+	const version = output.version;
+	if (version !== null && typeof version !== "string") {
+		throw new Error(`${name}.version must be a string or null`);
+	}
+	return {
+		path: requireString(output.path, `${name}.path`),
+		version,
+	};
+}
+
+export function parseEvalComparison(value: unknown): EvalComparison {
+	const comparison = requireRecord(value, "eval comparison");
+	if (!Array.isArray(comparison.changed)) {
+		throw new Error("eval comparison.changed must be an array");
+	}
+	const changed = comparison.changed.map((item, index) => {
+		const change = requireRecord(item, `eval comparison.changed[${index}]`);
+		return {
+			after: parsePackageOutput(
+				change.after,
+				`eval comparison.changed[${index}].after`,
+			),
+			before: parsePackageOutput(
+				change.before,
+				`eval comparison.changed[${index}].before`,
+			),
+			name: requireString(
+				change.name,
+				`eval comparison.changed[${index}].name`,
+			),
+		} satisfies ChangedPackage;
+	});
+	return {
+		added: parseNames(comparison.added, "eval comparison.added"),
+		changed,
+		mergedCount: parseCount(
+			comparison.mergedCount,
+			"eval comparison.mergedCount",
+		),
+		removed: parseNames(comparison.removed, "eval comparison.removed"),
+		system: requireString(comparison.system, "eval comparison.system"),
+		targetCount: parseCount(
+			comparison.targetCount,
+			"eval comparison.targetCount",
+		),
+		unchangedCount: parseCount(
+			comparison.unchangedCount,
+			"eval comparison.unchangedCount",
+		),
+	};
+}
 
 export function parsePackageSet(value: unknown, system: string): PackageSet {
 	if (!isRecord(value)) {
@@ -190,7 +259,5 @@ export async function evalPackages(args: readonly string[]): Promise<void> {
 		system,
 	);
 	writeTextFile(output, prettyJson(comparison));
-	const summary = markdownSummary(comparison);
-	console.log(summary);
-	appendStepSummary(summary);
+	console.log(markdownSummary(comparison));
 }

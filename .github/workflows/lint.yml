@@ -21,26 +21,25 @@ defaults:
 
 jobs:
   treefmt:
-    name: Treefmt
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - name: Checkout trusted target
+      - name: Checkout trusted
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           ref: ${{ inputs.target-sha }}
           path: trusted
-      - name: Checkout untrusted merge result
+      - name: Checkout untrusted
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           repository: ${{ inputs.merged-repository }}
           ref: ${{ inputs.merged-sha }}
           path: untrusted
-      - name: Set up Nix
+      - name: Install Nix
         uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
         with:
           extra_nix_config: |
@@ -48,7 +47,7 @@ jobs:
             sandbox = true
             allow-import-from-derivation = false
             accept-flake-config = false
-      - name: Check formatting with trusted configuration
+      - name: Check formatting
         run: |
           formatter=$(nix build \
             --no-link \
@@ -58,20 +57,19 @@ jobs:
           "$formatter/bin/treefmt" --ci -C "$GITHUB_WORKSPACE/untrusted"
 
   parse:
-    name: Parse Nix files
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - name: Checkout untrusted merge result
+      - name: Checkout untrusted
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           repository: ${{ inputs.merged-repository }}
           ref: ${{ inputs.merged-sha }}
           path: untrusted
-      - name: Set up Nix
+      - name: Install Nix
         uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
         with:
           extra_nix_config: |
@@ -79,7 +77,7 @@ jobs:
             sandbox = true
             allow-import-from-derivation = false
             accept-flake-config = false
-      - name: Parse all Nix files
+      - name: Parse
         run: |
           while IFS= read -r -d '' file; do
             echo "parsing $file"

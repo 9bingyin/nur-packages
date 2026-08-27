@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { decodeBase64, githubRepository, githubRequest } from "./github.ts";
+import type { SystemConfig } from "./lib.ts";
 import {
 	parseJson,
 	parseSystems,
@@ -140,7 +141,7 @@ async function mergeBaseSha(
 	return validateSha("targetSha", mergeBase.sha);
 }
 
-async function readSystems(ref: string): Promise<readonly string[]> {
+async function readSystems(ref: string): Promise<readonly SystemConfig[]> {
 	const content = requireRecord(
 		await githubRequest(
 			`/repos/${githubRepository()}/contents/ci/systems.json?ref=${encodeURIComponent(ref)}`,
@@ -155,7 +156,7 @@ async function readSystems(ref: string): Promise<readonly string[]> {
 		decodeBase64(requireString(content.content, "ci/systems.json content")),
 		"ci/systems.json",
 	);
-	return parseSystems(entries).map(({ system }) => system);
+	return parseSystems(entries);
 }
 
 async function changedFiles(number: number): Promise<readonly string[]> {
@@ -200,7 +201,8 @@ export async function preparePullRequest(): Promise<void> {
 		);
 	}
 
-	const systems = await readSystems(targetSha);
+	const systemConfigs = await readSystems(targetSha);
+	const systems = systemConfigs.map(({ system }) => system);
 	const files = await changedFiles(pullRequest.number);
 
 	console.log(`base branch: ${pullRequest.base.ref}`);
@@ -214,6 +216,7 @@ export async function preparePullRequest(): Promise<void> {
 	writeOutput("baseBranch", pullRequest.base.ref);
 	writeOutput("headBranch", pullRequest.head.ref);
 	writeOutput("headSha", headSha);
+	writeOutput("matrix", JSON.stringify({ include: systemConfigs }));
 	writeOutput("mergedRepository", mergedRepository);
 	writeOutput("mergedSha", mergedSha);
 	writeOutput("targetSha", targetSha);

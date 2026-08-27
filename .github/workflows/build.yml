@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        required: true
+        type: string
+      merged-repository:
+        required: true
+        type: string
+      merged-sha:
+        required: true
+        type: string
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    steps:
+      - name: Checkout untrusted
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          repository: ${{ inputs.merged-repository }}
+          ref: ${{ inputs.merged-sha }}
+          path: untrusted
+      - name: Install Nix
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://cache.bingyin.org
+            extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
+            sandbox = true
+            allow-import-from-derivation = false
+            accept-flake-config = false
+      - name: Build CI outputs
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          nix build \
+            --no-link \
+            --keep-going \
+            --no-write-lock-file \
+            --option accept-flake-config false \
+            --option allow-import-from-derivation false \
+            "path:$GITHUB_WORKSPACE/untrusted#formatter.$SYSTEM" \
+            "path:$GITHUB_WORKSPACE/untrusted#checks.$SYSTEM.meta-maintainers" \
+            "path:$GITHUB_WORKSPACE/untrusted#checks.$SYSTEM.package-metadata"

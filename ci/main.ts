@@ -2,6 +2,7 @@ import process from "node:process";
 import { autoMerge } from "./auto-merge.ts";
 import { buildNativePackages } from "./build-native-packages.ts";
 import { discoverUpdates } from "./discovery.ts";
+import { evalCompare } from "./eval-compare.ts";
 import { evalPackages } from "./eval-packages.ts";
 import { preparePullRequest } from "./prepare-pr.ts";
 import { publishStatus } from "./publish-status.ts";
@@ -15,6 +16,7 @@ function usage(): string {
 		"  auto-merge",
 		"  build-native-packages",
 		"  discovery",
+		"  eval-compare",
 		"  eval-packages",
 		"  prepare-pr",
 		"  publish-status",
@@ -37,6 +39,9 @@ async function main(args: readonly string[]): Promise<void> {
 			return;
 		case "discovery":
 			await discoverUpdates();
+			return;
+		case "eval-compare":
+			evalCompare(commandArgs);
 			return;
 		case "eval-packages":
 			await evalPackages(commandArgs);
