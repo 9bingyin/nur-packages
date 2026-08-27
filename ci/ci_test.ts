@@ -4,6 +4,7 @@ import {
 	dependabotDiffAllowed,
 	ownBotDiffAllowed,
 	selectCacheMode,
+	workflowRunMatchesRevision,
 } from "./cache-gate.ts";
 import { parseStorePaths } from "./cache-upload.ts";
 import {
@@ -72,6 +73,50 @@ test("parseSystems validates systems and runners", () => {
 test("prepare validates the test merge parents", () => {
 	assert.equal(validateMergeParents(["base", "head"], "base", "head"), "base");
 	assert.throws(() => validateMergeParents(["head", "base"], "base", "head"));
+});
+
+test("cache gate matches pull_request_target head and workflow revisions", () => {
+	const revision = {
+		...REVIEW_REVISION,
+		workflowSha: REVIEW_REVISION.baseSha,
+	};
+	const run = {
+		conclusion: "success",
+		event: "pull_request_target",
+		head_branch: revision.headBranch,
+		head_repository: { id: revision.headRepositoryId },
+		head_sha: revision.headSha,
+		path: ".github/workflows/pull-request-target.yml",
+		pull_requests: [
+			{
+				base: {
+					ref: revision.baseBranch,
+					repo: { id: revision.repositoryId },
+					sha: revision.baseSha,
+				},
+				head: {
+					ref: revision.headBranch,
+					repo: { id: revision.headRepositoryId },
+					sha: revision.headSha,
+				},
+				number: revision.pullRequestNumber,
+			},
+		],
+		repository: { id: revision.repositoryId },
+		run_attempt: revision.runAttempt,
+	};
+	assert.equal(
+		workflowRunMatchesRevision(run, revision, "owner/repository"),
+		true,
+	);
+	assert.equal(
+		workflowRunMatchesRevision(
+			{ ...run, head_sha: revision.workflowSha },
+			revision,
+			"owner/repository",
+		),
+		false,
+	);
 });
 
 test("cache gate downgrades manually changed bot branches", () => {

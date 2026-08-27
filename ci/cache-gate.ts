@@ -106,25 +106,58 @@ function parsePullRequest(value: unknown): PullRequestInfo {
 	};
 }
 
-async function validateWorkflowRun(revision: ReviewRevision): Promise<void> {
-	const run = requireRecord(
-		await githubRequest(
-			`/repos/${githubRepository()}/actions/runs/${revision.runId}`,
-		),
-		"workflow run",
-	);
+export function workflowRunMatchesRevision(
+	value: unknown,
+	revision: ReviewRevision,
+	repositoryName = githubRepository(),
+): boolean {
+	const run = requireRecord(value, "workflow run");
 	const repository = requireRecord(run.repository, "workflow run.repository");
-	const expectedWorkflowRef = `${githubRepository()}/${EXPECTED_WORKFLOW_PATH}@refs/heads/${revision.baseBranch}`;
+	const headRepository = requireRecord(
+		run.head_repository,
+		"workflow run.head_repository",
+	);
+	const expectedWorkflowRef = `${repositoryName}/${EXPECTED_WORKFLOW_PATH}@refs/heads/${revision.baseBranch}`;
 	if (
 		run.event !== "pull_request_target" ||
 		run.conclusion !== "success" ||
 		run.path !== EXPECTED_WORKFLOW_PATH ||
 		run.run_attempt !== revision.runAttempt ||
-		run.head_sha !== revision.workflowSha ||
+		run.head_branch !== revision.headBranch ||
+		run.head_sha !== revision.headSha ||
 		revision.workflowSha !== revision.baseSha ||
 		revision.workflowRef !== expectedWorkflowRef ||
-		repository.id !== revision.repositoryId
+		repository.id !== revision.repositoryId ||
+		headRepository.id !== revision.headRepositoryId ||
+		!Array.isArray(run.pull_requests)
 	) {
+		return false;
+	}
+	const pullRequests = run.pull_requests.filter((item) => {
+		if (!isRecord(item) || item.number !== revision.pullRequestNumber) {
+			return false;
+		}
+		const base = isRecord(item.base) ? item.base : {};
+		const head = isRecord(item.head) ? item.head : {};
+		const baseRepository = isRecord(base.repo) ? base.repo : {};
+		const headPullRequestRepository = isRecord(head.repo) ? head.repo : {};
+		return (
+			base.ref === revision.baseBranch &&
+			base.sha === revision.baseSha &&
+			baseRepository.id === revision.repositoryId &&
+			head.ref === revision.headBranch &&
+			head.sha === revision.headSha &&
+			headPullRequestRepository.id === revision.headRepositoryId
+		);
+	});
+	return pullRequests.length === 1;
+}
+
+async function validateWorkflowRun(revision: ReviewRevision): Promise<void> {
+	const run = await githubRequest(
+		`/repos/${githubRepository()}/actions/runs/${revision.runId}`,
+	);
+	if (!workflowRunMatchesRevision(run, revision)) {
 		throw new Error(
 			"The review workflow run does not match the trusted policy",
 		);
