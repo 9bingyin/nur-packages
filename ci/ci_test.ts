@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-	dependabotDiffAllowed,
-	ownBotDiffAllowed,
-	selectCacheMode,
-	workflowRunMatchesRevision,
-} from "./cache-gate.ts";
-import { parseStorePaths } from "./cache-upload.ts";
+import { nixFastBuildCommand } from "./cache.ts";
 import {
 	buildMatrix,
 	parseFlakeInputs,
@@ -20,7 +14,12 @@ import {
 } from "./eval-packages.ts";
 import { parseSystems } from "./lib.ts";
 import { packageSetsMatch } from "./lix.ts";
-import { pullRequestMatchesCache } from "./merge.ts";
+import { pullRequestMatchesMerge } from "./merge.ts";
+import {
+	dependabotDiffAllowed,
+	ownBotDiffAllowed,
+	selectMergeMode,
+} from "./merge-policy.ts";
 import { validateMergeParents } from "./prepare-pr.ts";
 import { checksSucceeded } from "./publish-status.ts";
 import {
@@ -75,64 +74,24 @@ test("prepare validates the test merge parents", () => {
 	assert.throws(() => validateMergeParents(["head", "base"], "base", "head"));
 });
 
-test("cache gate matches pull_request_target head and workflow revisions", () => {
-	const revision = {
-		...REVIEW_REVISION,
-		workflowSha: REVIEW_REVISION.baseSha,
-	};
-	const run = {
-		conclusion: "success",
-		event: "pull_request_target",
-		head_branch: revision.headBranch,
-		head_repository: { id: revision.headRepositoryId },
-		head_sha: revision.headSha,
-		path: ".github/workflows/pull-request-target.yml",
-		pull_requests: [
-			{
-				base: {
-					ref: revision.baseBranch,
-					repo: { id: revision.repositoryId },
-					sha: revision.baseSha,
-				},
-				head: {
-					ref: revision.headBranch,
-					repo: { id: revision.headRepositoryId },
-					sha: revision.headSha,
-				},
-				number: revision.pullRequestNumber,
-			},
-		],
-		repository: { id: revision.repositoryId },
-		run_attempt: revision.runAttempt,
-	};
-	assert.equal(
-		workflowRunMatchesRevision(run, revision, "owner/repository"),
-		true,
-	);
-	assert.equal(
-		workflowRunMatchesRevision(
-			{ ...run, head_sha: revision.workflowSha },
-			revision,
-			"owner/repository",
-		),
-		false,
-	);
-});
-
-test("cache gate downgrades manually changed bot branches", () => {
+test("merge policy downgrades manually changed bot branches", () => {
 	const files = parseRawDiff(
 		":100644 100644 1111111 2222222 M\0packages/foo/package.nix\0",
 	);
-	const pullRequest = {
+	const reference = {
 		baseRef: "main",
+		baseRepositoryId: 1,
 		baseSha: "1".repeat(40),
-		draft: false,
 		headRef: "update/foo",
-		headRepository: "owner/repository",
 		headRepositoryId: 1,
 		headSha: "2".repeat(40),
-		mergeCommitSha: "3".repeat(40),
-		mergeable: true,
+		number: 1,
+	};
+	const pullRequest = {
+		baseSha: reference.baseSha,
+		draft: false,
+		headRepositoryId: 1,
+		headSha: reference.headSha,
 		number: 1,
 		state: "open",
 		userId: 10,
@@ -140,8 +99,26 @@ test("cache gate downgrades manually changed bot branches", () => {
 		userType: "Bot",
 	};
 	assert.equal(ownBotDiffAllowed("update/foo", files), true);
-	assert.equal(selectCacheMode(pullRequest, 1, 10, true, files, ""), "auto");
-	assert.equal(selectCacheMode(pullRequest, 1, 10, false, files, ""), "manual");
+	assert.equal(
+		selectMergeMode(pullRequest, reference, 1, 10, true, files, ""),
+		"auto",
+	);
+	assert.equal(
+		selectMergeMode(pullRequest, reference, 1, 10, false, files, ""),
+		"manual",
+	);
+	assert.equal(
+		selectMergeMode(
+			{ ...pullRequest, baseSha: "3".repeat(40) },
+			reference,
+			1,
+			10,
+			true,
+			files,
+			"",
+		),
+		"stale",
+	);
 });
 
 test("dependabot auto mode accepts only full SHA action changes", () => {
@@ -163,32 +140,46 @@ test("dependabot auto mode accepts only full SHA action changes", () => {
 	assert.equal(dependabotDiffAllowed(files, diff.replace(newSha, "v7")), false);
 });
 
-test("cache uploads accept only Nix store paths", () => {
-	const path = `/nix/store/${"a".repeat(32)}-package`;
-	assert.deepEqual(parseStorePaths([path]), [path]);
-	assert.throws(() => parseStorePaths(["/tmp/package"]));
+test("nix-fast-build scans every uncached package", () => {
+	const command = nixFastBuildCommand(
+		".",
+		"x86_64-linux",
+		"cache-x86_64-linux.json",
+		"https://niks3.example.com",
+	);
+	assert.equal(command.includes("--skip-cached"), true);
+	assert.equal(command.includes("--niks3-server"), true);
+	assert.equal(command.includes("#packages.x86_64-linux"), false);
+	assert.equal(
+		command.some((argument) => argument.endsWith("#packages.x86_64-linux")),
+		true,
+	);
 });
 
-test("merge requires the exact cached revision", () => {
+test("auto-merge requires the exact reviewed revision", () => {
 	const expected = {
 		baseSha: "1".repeat(40),
 		headSha: "2".repeat(40),
-		mergedSha: "3".repeat(40),
 		number: 1,
 	};
 	const pullRequest = {
 		base: { sha: expected.baseSha },
 		draft: false,
 		head: { sha: expected.headSha },
-		merge_commit_sha: expected.mergedSha,
-		mergeable: true,
 		number: 1,
 		state: "open",
 	};
-	assert.equal(pullRequestMatchesCache(pullRequest, expected), true);
+	assert.equal(pullRequestMatchesMerge(pullRequest, expected), true);
 	assert.equal(
-		pullRequestMatchesCache(
+		pullRequestMatchesMerge(
 			{ ...pullRequest, base: { sha: "4".repeat(40) } },
+			expected,
+		),
+		false,
+	);
+	assert.equal(
+		pullRequestMatchesMerge(
+			{ ...pullRequest, head: { sha: "4".repeat(40) } },
 			expected,
 		),
 		false,
@@ -342,9 +333,7 @@ test("review builds added and changed packages for one system", () => {
 		true,
 	);
 	assert.equal(
-		reviewMarkdown({ ...selection, storePaths: [], success: true }).includes(
-			"Build | success",
-		),
+		reviewMarkdown({ ...selection, success: true }).includes("Build | success"),
 		true,
 	);
 });

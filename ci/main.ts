@@ -1,12 +1,11 @@
 import process from "node:process";
-import { buildAllCache, buildCache, buildCacheResult } from "./cache.ts";
-import { cacheGate } from "./cache-gate.ts";
-import { uploadCache } from "./cache-upload.ts";
+import { buildCache } from "./cache.ts";
 import { discoverUpdates } from "./discovery.ts";
 import { evalCompare } from "./eval-compare.ts";
 import { evalPackages, evalSnapshot } from "./eval-packages.ts";
 import { checkLix } from "./lix.ts";
-import { mergeCachedPullRequest } from "./merge.ts";
+import { mergePullRequest } from "./merge.ts";
+import { mergePolicy } from "./merge-policy.ts";
 import { preparePullRequest } from "./prepare-pr.ts";
 import { publishStatus } from "./publish-status.ts";
 import { review } from "./review.ts";
@@ -18,10 +17,6 @@ function usage(): string {
 		"",
 		"Commands:",
 		"  build-cache",
-		"  build-cache-all",
-		"  build-cache-result",
-		"  cache-gate",
-		"  cache-upload",
 		"  discovery",
 		"  eval-compare",
 		"  eval-packages",
@@ -29,6 +24,7 @@ function usage(): string {
 		"  inspect-update",
 		"  lix",
 		"  merge",
+		"  merge-policy",
 		"  prepare-pr",
 		"  prepare-update",
 		"  publish-status",
@@ -46,18 +42,6 @@ async function main(args: readonly string[]): Promise<void> {
 	switch (command) {
 		case "build-cache":
 			await buildCache(commandArgs);
-			return;
-		case "build-cache-all":
-			await buildAllCache(commandArgs);
-			return;
-		case "build-cache-result":
-			await buildCacheResult(commandArgs);
-			return;
-		case "cache-gate":
-			await cacheGate();
-			return;
-		case "cache-upload":
-			await uploadCache(commandArgs);
 			return;
 		case "discovery":
 			await discoverUpdates();
@@ -78,7 +62,10 @@ async function main(args: readonly string[]): Promise<void> {
 			await checkLix(commandArgs);
 			return;
 		case "merge":
-			await mergeCachedPullRequest();
+			await mergePullRequest();
+			return;
+		case "merge-policy":
+			await mergePolicy();
 			return;
 		case "prepare-pr":
 			await preparePullRequest();

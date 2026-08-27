@@ -70,17 +70,10 @@ jobs:
           SYSTEM: ${{ matrix.system }}
         run: |
           bun trusted/ci/main.ts review \
-            --cache-directory "$RUNNER_TEMP/review-cache-$SYSTEM" \
             --comparison comparison/eval-comparison.json \
             --repository untrusted \
             --system "$SYSTEM" \
             --output "review-$SYSTEM.json"
-      - name: Upload cache bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: review-cache-${{ matrix.system }}
-          path: ${{ runner.temp }}/review-cache-${{ matrix.system }}
-          compression-level: 0
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
