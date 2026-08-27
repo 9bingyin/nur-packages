@@ -5,28 +5,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import quote, unquote, urlparse
 
 ROOT = Path(__file__).parents[2]
-RELEASE_URL = "https://api.github.com/repos/imputnet/helium-macos/releases/latest"
+LATEST_RELEASE_URL = "https://github.com/imputnet/helium-macos/releases/latest"
 USER_AGENT = "9bingyin-nur-packages-updater"
-
-
-def github_headers() -> dict[str, str]:
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": USER_AGENT,
-    }
-    token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    return headers
 
 
 def run(command: list[str], *, capture: bool = False) -> str:
@@ -36,30 +25,28 @@ def run(command: list[str], *, capture: bool = False) -> str:
 
 def latest_release() -> tuple[str, str]:
     request = urllib.request.Request(
-        RELEASE_URL,
-        headers=github_headers(),
+        LATEST_RELEASE_URL,
+        headers={"User-Agent": USER_AGENT},
+        method="HEAD",
     )
     with urllib.request.urlopen(request, timeout=30) as response:
-        release: object = json.load(response)
+        final_url = response.geturl()
 
-    if not isinstance(release, dict):
-        raise RuntimeError("Helium release API returned an invalid payload")
-    version = release.get("tag_name")
-    assets = release.get("assets")
-    if not isinstance(version, str) or not version:
-        raise RuntimeError("Helium release API returned no version")
-    if not isinstance(assets, list):
-        raise RuntimeError("Helium release API returned no assets")
+    path = urlparse(final_url).path
+    prefix = "/imputnet/helium-macos/releases/tag/"
+    if not path.startswith(prefix):
+        raise RuntimeError(f"Unexpected Helium release URL: {final_url}")
+    version = unquote(path.removeprefix(prefix)).strip("/")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+_-]*", version):
+        raise RuntimeError(f"Invalid Helium release tag: {version}")
 
+    encoded_version = quote(version, safe=".+_-")
     asset_name = f"helium_{version}_arm64-macos.dmg"
-    for asset in assets:
-        if not isinstance(asset, dict) or asset.get("name") != asset_name:
-            continue
-        url = asset.get("browser_download_url")
-        if isinstance(url, str) and url:
-            return version, url
-
-    raise RuntimeError(f"Helium release {version} has no {asset_name} asset")
+    return (
+        version,
+        "https://github.com/imputnet/helium-macos/releases/download/"
+        f"{encoded_version}/{quote(asset_name)}",
+    )
 
 
 def prefetch_sri_hash(url: str) -> str:

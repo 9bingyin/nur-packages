@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -14,9 +13,11 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TypeGuard, cast
 
 ROOT = Path(__file__).parents[2]
+REPOSITORY_URL = "https://github.com/longbridge/longbridge-desktop-website.git"
 USER_AGENT = "9bingyin-nur-packages-updater"
 
 
@@ -26,54 +27,46 @@ def is_string_mapping(value: object) -> TypeGuard[dict[str, object]]:
     )
 
 
-def is_object_list(value: object) -> TypeGuard[list[object]]:
-    return isinstance(value, list)
-
-
-def github_headers() -> dict[str, str]:
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": USER_AGENT,
-    }
-    token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    return headers
-
-
 def run(command: Sequence[str], *, capture: bool = False) -> str:
     result = subprocess.run(command, check=True, text=True, capture_output=capture)
     return result.stdout if capture else ""
 
 
-def latest_version() -> str:
-    request = urllib.request.Request(
-        "https://api.github.com/repos/longbridge/longbridge-desktop-website/"
-        "contents/docs/release-notes",
-        headers=github_headers(),
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        payload: object = json.load(response)
-    if not is_object_list(payload):
-        raise RuntimeError(
-            "Longbridge release notes API returned an unexpected payload"
+def release_versions() -> set[str]:
+    with TemporaryDirectory(prefix="longbridge-update-") as temporary_directory:
+        repository = Path(temporary_directory) / "repository"
+        run(
+            [
+                "git",
+                "clone",
+                "--depth=1",
+                "--filter=blob:none",
+                "--sparse",
+                REPOSITORY_URL,
+                str(repository),
+            ]
         )
+        run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "sparse-checkout",
+                "set",
+                "docs/release-notes",
+            ]
+        )
+        versions: set[str] = set()
+        for path in (repository / "docs/release-notes").glob("v*.md"):
+            if match := re.fullmatch(r"v([0-9]+\.[0-9]+\.[0-9]+)\.md", path.name):
+                versions.add(match.group(1))
+        return versions
 
-    versions: set[str] = set()
-    for raw_entry in payload:
-        if not is_string_mapping(raw_entry):
-            continue
-        if raw_entry.get("type") != "file":
-            continue
-        name = raw_entry.get("name")
-        if not isinstance(name, str):
-            continue
-        if match := re.fullmatch(r"v([0-9]+\.[0-9]+\.[0-9]+)\.md", name):
-            versions.add(match.group(1))
 
+def latest_version() -> str:
     suffixes = ("linux-x86_64.deb", "macos-aarch64.dmg")
     for version in sorted(
-        versions,
+        release_versions(),
         key=lambda candidate: tuple(map(int, candidate.split("."))),
         reverse=True,
     ):
