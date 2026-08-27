@@ -10,6 +10,12 @@ import { preparePullRequest } from "./prepare-pr.ts";
 import { publishStatus } from "./publish-status.ts";
 import { review } from "./review.ts";
 import { inspectUpdate, prepareUpdate, publishUpdate } from "./update.ts";
+import {
+	inspectUpdateBatch,
+	prepareUpdateBatch,
+	publishUpdateBatch,
+} from "./update-batch.ts";
+import { refreshUpdateQueue } from "./update-queue.ts";
 
 function usage(): string {
 	return [
@@ -22,13 +28,17 @@ function usage(): string {
 		"  eval-packages",
 		"  eval-snapshot",
 		"  inspect-update",
+		"  inspect-update-batch",
 		"  lix",
 		"  merge",
 		"  merge-policy",
 		"  prepare-pr",
 		"  prepare-update",
+		"  prepare-update-batch",
 		"  publish-status",
 		"  publish-update",
+		"  publish-update-batch",
+		"  refresh-update-queue",
 		"  review",
 	].join("\n");
 }
@@ -58,6 +68,9 @@ async function main(args: readonly string[]): Promise<void> {
 		case "inspect-update":
 			inspectUpdate();
 			return;
+		case "inspect-update-batch":
+			inspectUpdateBatch();
+			return;
 		case "lix":
 			await checkLix(commandArgs);
 			return;
@@ -73,11 +86,20 @@ async function main(args: readonly string[]): Promise<void> {
 		case "prepare-update":
 			await prepareUpdate();
 			return;
+		case "prepare-update-batch":
+			await prepareUpdateBatch();
+			return;
 		case "publish-status":
 			await publishStatus();
 			return;
 		case "publish-update":
 			await publishUpdate();
+			return;
+		case "publish-update-batch":
+			await publishUpdateBatch();
+			return;
+		case "refresh-update-queue":
+			await refreshUpdateQueue();
 			return;
 		case "review":
 			await review(commandArgs);

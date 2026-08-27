@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { nixFastBuildCommand } from "./cache.ts";
 import {
+	buildBatchMatrix,
 	buildMatrix,
 	parseFlakeInputs,
 	parsePackageVersions,
@@ -36,6 +37,7 @@ import {
 	validateChangedFiles,
 	worktreeCommand,
 } from "./update.ts";
+import { parseUpdateBatch } from "./update-batch.ts";
 import {
 	formatUpdateProvenance,
 	parseUpdateProvenance,
@@ -100,11 +102,15 @@ test("merge policy downgrades manually changed bot branches", () => {
 	};
 	assert.equal(ownBotDiffAllowed("update/foo", files), true);
 	assert.equal(
-		selectMergeMode(pullRequest, reference, 1, 10, true, files, ""),
+		selectMergeMode(pullRequest, reference, 1, 10, true, true, files, ""),
 		"auto",
 	);
 	assert.equal(
-		selectMergeMode(pullRequest, reference, 1, 10, false, files, ""),
+		selectMergeMode(pullRequest, reference, 1, 10, true, false, files, ""),
+		"queued",
+	);
+	assert.equal(
+		selectMergeMode(pullRequest, reference, 1, 10, false, true, files, ""),
 		"manual",
 	);
 	assert.equal(
@@ -113,6 +119,7 @@ test("merge policy downgrades manually changed bot branches", () => {
 			reference,
 			1,
 			10,
+			true,
 			true,
 			files,
 			"",
@@ -225,6 +232,12 @@ test("discovery builds package and flake input groups", () => {
 		current_version: "1.0",
 		name: "forge",
 	});
+	const batches = buildBatchMatrix(matrix);
+	assert.deepEqual(
+		batches.include.map(({ group, targets }) => [group, targets.length]),
+		[["x86_64-linux", 2]],
+	);
+	assert.equal(parseUpdateBatch(batches.include[0]?.targets).length, 2);
 });
 
 test("eval comparison reports added, removed and changed packages", () => {

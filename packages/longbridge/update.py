@@ -1,5 +1,4 @@
-#!/usr/bin/env nix
-#! nix shell --inputs-from ../../.# nixpkgs#python3 --command python3
+#!/usr/bin/env python3
 """Update Longbridge after both native release artifacts are available."""
 
 from __future__ import annotations

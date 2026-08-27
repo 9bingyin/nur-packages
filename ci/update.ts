@@ -857,8 +857,7 @@ async function createProvenanceComment(
 	);
 }
 
-export function inspectUpdate(): void {
-	const directory = requiredEnvironment("UPDATE_ARTIFACT_DIR");
+export function updateArtifactChanged(directory: string): boolean {
 	const manifest = parseUpdateManifest(
 		readJsonFile(`${directory}/${UPDATE_MANIFEST}`),
 	);
@@ -866,7 +865,14 @@ export function inspectUpdate(): void {
 	if (sha256(patch) !== manifest.patchSha256) {
 		throw new Error("Update patch digest does not match its manifest");
 	}
-	writeOutput("changed", String(!manifest.noChanges));
+	return !manifest.noChanges;
+}
+
+export function inspectUpdate(): void {
+	writeOutput(
+		"changed",
+		String(updateArtifactChanged(requiredEnvironment("UPDATE_ARTIFACT_DIR"))),
+	);
 }
 
 export async function publishUpdate(): Promise<void> {

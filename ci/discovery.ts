@@ -48,6 +48,17 @@ export type UpdateMatrix = Readonly<{
 	include: readonly MatrixItem[];
 }>;
 
+export type BatchMatrixItem = Readonly<{
+	artifact: string;
+	group: string;
+	runner: string;
+	targets: readonly MatrixItem[];
+}>;
+
+export type BatchMatrix = Readonly<{
+	include: readonly BatchMatrixItem[];
+}>;
+
 function packageDirectory(name: string): string {
 	return `packages/${name}`;
 }
@@ -231,6 +242,29 @@ export function buildMatrix(
 	return { include };
 }
 
+export function buildBatchMatrix(matrix: UpdateMatrix): BatchMatrix {
+	const batches = new Map<string, BatchMatrixItem>();
+	for (const item of matrix.include) {
+		const key = `${item.runner}:${item.system}`;
+		const existing = batches.get(key);
+		if (existing) {
+			batches.set(key, { ...existing, targets: [...existing.targets, item] });
+		} else {
+			batches.set(key, {
+				artifact: `update-batch-${item.system}`,
+				group: item.system,
+				runner: item.runner,
+				targets: [item],
+			});
+		}
+	}
+	return {
+		include: [...batches.values()].sort((left, right) =>
+			left.group.localeCompare(right.group),
+		),
+	};
+}
+
 export async function discoverUpdates(): Promise<void> {
 	const systems = readSystems();
 	const packageFilter = splitFilter(process.env.PACKAGES);
@@ -240,7 +274,9 @@ export async function discoverUpdates(): Promise<void> {
 		await discoverPackages(systems, packageFilter),
 		parseFlakeInputs(readJsonFile("flake.lock"), inputFilter),
 	);
-	console.log(prettyJson(matrix).trimEnd());
+	const batchMatrix = buildBatchMatrix(matrix);
+	console.log(prettyJson(batchMatrix).trimEnd());
+	writeOutput("batch-matrix", compactJson(batchMatrix));
 	writeOutput("matrix", compactJson(matrix));
 	writeOutput("has-updates", String(matrix.include.length > 0));
 }

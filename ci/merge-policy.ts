@@ -15,7 +15,10 @@ import {
 	writeOutput,
 } from "./lib.ts";
 import { parseRawDiff } from "./update.ts";
-import { parseUpdateProvenance } from "./update-provenance.ts";
+import {
+	parseUpdateProvenance,
+	type UpdateProvenance,
+} from "./update-provenance.ts";
 
 const DEPENDABOT_USER_ID = 49_699_333;
 const EXPECTED_WORKFLOW_PATH = ".github/workflows/pull-request-target.yml";
@@ -28,13 +31,14 @@ const PRIVILEGED_WORKFLOWS = new Set([
 	".github/workflows/lix.yml",
 	".github/workflows/merge-pr.yml",
 	".github/workflows/pull-request-target.yml",
+	".github/workflows/refresh-updates.yml",
 	".github/workflows/review.yml",
 	".github/workflows/update.yml",
 ]);
 const ACTION_REFERENCE_PATTERN =
 	/^\s*uses:\s+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?)@([0-9a-f]{40})(?:\s+#.*)?$/;
 
-type MergeMode = "auto" | "manual" | "stale";
+type MergeMode = "auto" | "manual" | "queued" | "stale";
 
 type PullRequestReference = Readonly<{
 	baseRef: string;
@@ -153,25 +157,65 @@ async function triggeringPullRequest(
 	return parseReference(run.pull_requests[0]);
 }
 
-async function hasProvenance(
+async function provenanceForHead(
 	pullRequest: number,
-	baseSha: string,
 	headSha: string,
 	botUserId: number,
-): Promise<boolean> {
+): Promise<UpdateProvenance | null> {
 	const comments = await githubRequestPages(
 		`/repos/${githubRepository()}/issues/${pullRequest}/comments`,
 	);
-	return comments.some((item) => {
+	for (const item of comments) {
 		const comment = isRecord(item) ? item : {};
 		const user = isRecord(comment.user) ? comment.user : {};
 		const provenance = parseUpdateProvenance(comment.body);
-		return (
-			user.id === botUserId &&
-			provenance?.baseSha === baseSha &&
-			provenance.headSha === headSha
-		);
-	});
+		if (user.id === botUserId && provenance?.headSha === headSha) {
+			return provenance;
+		}
+	}
+	return null;
+}
+
+async function ownBotQueueHead(
+	pullRequestNumber: number,
+	baseRef: string,
+	botUserId: number,
+	repositoryId: number,
+): Promise<boolean> {
+	const pulls = await githubRequestPages(
+		`/repos/${githubRepository()}/pulls?state=open&base=${encodeURIComponent(baseRef)}`,
+	);
+	const candidates: number[] = [];
+	for (const item of pulls) {
+		if (!isRecord(item) || !isRecord(item.user) || !isRecord(item.head)) {
+			continue;
+		}
+		const headRepository = isRecord(item.head.repo) ? item.head.repo : {};
+		const number = item.number;
+		const headSha = item.head.sha;
+		const headRef = item.head.ref;
+		if (
+			!Number.isInteger(number) ||
+			typeof number !== "number" ||
+			number <= 0 ||
+			item.draft !== false ||
+			item.user.id !== botUserId ||
+			item.user.type !== "Bot" ||
+			headRepository.id !== repositoryId ||
+			typeof headSha !== "string" ||
+			typeof headRef !== "string" ||
+			!headRef.startsWith("update/")
+		) {
+			continue;
+		}
+		const provenance = await provenanceForHead(number, headSha, botUserId);
+		if (provenance && headRef === `update/${provenance.targetName}`) {
+			candidates.push(number);
+		}
+	}
+	return (
+		candidates.sort((left, right) => left - right)[0] === pullRequestNumber
+	);
 }
 
 function regularFiles(files: ReturnType<typeof parseRawDiff>): boolean {
@@ -253,6 +297,7 @@ export function selectMergeMode(
 	repositoryId: number,
 	botUserId: number,
 	provenance: boolean,
+	queueHead: boolean,
 	files: ReturnType<typeof parseRawDiff>,
 	dependabotDiff: string,
 ): MergeMode {
@@ -273,7 +318,7 @@ export function selectMergeMode(
 		provenance &&
 		ownBotDiffAllowed(reference.headRef, files)
 	) {
-		return "auto";
+		return queueHead ? "auto" : "queued";
 	}
 	if (
 		pullRequest.userId === DEPENDABOT_USER_ID &&
@@ -383,19 +428,23 @@ export async function mergePolicy(): Promise<void> {
 				reference.headSha,
 			)
 		: { diff: "", files: [] };
+	const provenance = ownBot
+		? await provenanceForHead(reference.number, reference.headSha, botUserId)
+		: null;
 	const mode = selectMergeMode(
 		pullRequest,
 		reference,
 		repositoryId,
 		botUserId,
+		provenance?.baseSha === reference.baseSha,
 		ownBot
-			? await hasProvenance(
+			? await ownBotQueueHead(
 					reference.number,
-					reference.baseSha,
-					reference.headSha,
+					reference.baseRef,
 					botUserId,
+					repositoryId,
 				)
-			: false,
+			: true,
 		files,
 		diff,
 	);
