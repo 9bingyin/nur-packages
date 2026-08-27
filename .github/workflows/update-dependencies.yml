@@ -40,7 +40,7 @@ jobs:
         env:
           PACKAGES: ${{ github.event.inputs.packages || '' }}
           INPUTS: ${{ github.event.inputs.inputs || '' }}
-        run: ./.github/ci/discovery.py
+        run: ./ci/discovery.py
 
   update:
     needs: discover
@@ -87,7 +87,7 @@ jobs:
           PR_LABELS: "dependencies,automated"
           UPDATE_TARGETS: ${{ toJSON(matrix.targets) }}
           UPDATE_TYPE: ${{ matrix.type }}
-        run: ./.github/ci/update.py
+        run: ./ci/update.py
 
   summary:
     needs: [discover, update]

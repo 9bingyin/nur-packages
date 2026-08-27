@@ -1,0 +1,92 @@
+name: PR
+
+on:
+  pull_request_target:
+
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      base-branch: ${{ steps.prepare.outputs.baseBranch }}
+      files: ${{ steps.prepare.outputs.files }}
+      head-branch: ${{ steps.prepare.outputs.headBranch }}
+      head-sha: ${{ steps.prepare.outputs.headSha }}
+      merged-repository: ${{ steps.prepare.outputs.mergedRepository }}
+      merged-sha: ${{ steps.prepare.outputs.mergedSha }}
+      systems: ${{ steps.prepare.outputs.systems }}
+      target-sha: ${{ steps.prepare.outputs.targetSha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: ci/github-script
+      - id: prepare
+        name: Prepare pull request refs
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
+        with:
+          retries: 3
+          script: |
+            const prepare = require('./ci/github-script/prepare.js')
+            await prepare({ github, context, core })
+
+  lint:
+    name: Lint
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint.yml
+    with:
+      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      merged-sha: ${{ needs.prepare.outputs.merged-sha }}
+      target-sha: ${{ needs.prepare.outputs.target-sha }}
+
+  eval:
+    name: Eval
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/eval.yml
+    with:
+      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      merged-sha: ${{ needs.prepare.outputs.merged-sha }}
+      systems: ${{ needs.prepare.outputs.systems }}
+      target-sha: ${{ needs.prepare.outputs.target-sha }}
+
+  unlock:
+    name: Required checks
+    if: always()
+    needs:
+      - lint
+      - eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      statuses: write
+    steps:
+      - name: Publish aggregate status
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        with:
+          script: |
+            const results = JSON.parse(process.env.RESULTS)
+            const success = results.every((result) => result === 'success')
+            const { owner, repo } = context.repo
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: context.payload.pull_request.head.sha,
+              context: 'no PR failures',
+              state: success ? 'success' : 'error',
+              target_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+            })

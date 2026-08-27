@@ -13,6 +13,7 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
   };
 
   outputs =
@@ -20,11 +21,7 @@
     inputs.flake-parts.lib.mkFlake { inherit inputs; } (
       { lib, ... }:
       let
-        systems = [
-          "x86_64-linux"
-          "aarch64-linux"
-          "aarch64-darwin"
-        ];
+        systems = map (entry: entry.system) (builtins.fromJSON (builtins.readFile ./ci/systems.json));
       in
       {
         inherit systems;

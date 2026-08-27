@@ -1,30 +1,15 @@
-name: Build Package Cache
+name: Build Packages
 
 on:
-  push:
-    branches:
-      - main
-      - master
-  schedule:
-    - cron: "51 2 * * *"
-  workflow_dispatch:
+  pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  native-packages:
-    name: Native package cache (${{ matrix.system }})
+  build:
+    name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      NIKS3_SERVER: https://niks3.bingyin.org
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +30,7 @@ jobs:
             extra-substituters = https://cache.bingyin.org
             extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
             access-tokens = github.com=${{ github.token }}
-      - name: Build and upload uncached packages
+      - name: Build packages
         env:
           NIXPKGS_ALLOW_UNFREE: "1"
           SYSTEM: ${{ matrix.system }}

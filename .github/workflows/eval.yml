@@ -1,4 +1,4 @@
-name: Lint
+name: Eval
 
 on:
   workflow_call:
@@ -7,6 +7,9 @@ on:
         required: true
         type: string
       merged-sha:
+        required: true
+        type: string
+      systems:
         required: true
         type: string
       target-sha:
@@ -20,12 +23,48 @@ defaults:
     shell: bash
 
 jobs:
-  treefmt:
-    name: Treefmt
+  flake:
+    name: Flake outputs
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
+    steps:
+      - name: Checkout untrusted merge result
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          repository: ${{ inputs.merged-repository }}
+          ref: ${{ inputs.merged-sha }}
+          path: untrusted
+      - name: Set up Nix
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            sandbox = true
+            allow-import-from-derivation = false
+            accept-flake-config = false
+      - name: Evaluate all flake outputs
+        run: |
+          nix flake check \
+            --all-systems \
+            --no-build \
+            --no-write-lock-file \
+            --option accept-flake-config false \
+            --option allow-import-from-derivation false \
+            "path:$GITHUB_WORKSPACE/untrusted"
+
+  packages:
+    name: Packages (${{ matrix.system }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        system: ${{ fromJSON(inputs.systems) }}
     steps:
       - name: Checkout trusted target
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -48,40 +87,12 @@ jobs:
             sandbox = true
             allow-import-from-derivation = false
             accept-flake-config = false
-      - name: Check formatting with trusted configuration
+      - name: Compare package output paths
+        env:
+          SYSTEM: ${{ matrix.system }}
         run: |
-          formatter=$(nix build \
-            --no-link \
-            --no-write-lock-file \
-            --print-out-paths \
-            "path:$GITHUB_WORKSPACE/trusted#formatter.x86_64-linux")
-          "$formatter/bin/treefmt" --ci -C "$GITHUB_WORKSPACE/untrusted"
-
-  parse:
-    name: Parse Nix files
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout untrusted merge result
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          repository: ${{ inputs.merged-repository }}
-          ref: ${{ inputs.merged-sha }}
-          path: untrusted
-      - name: Set up Nix
-        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            sandbox = true
-            allow-import-from-derivation = false
-            accept-flake-config = false
-      - name: Parse all Nix files
-        run: |
-          while IFS= read -r -d '' file; do
-            echo "parsing $file"
-            nix-instantiate --parse "$file" >/dev/null
-          done < <(find untrusted -type f -name '*.nix' -print0 | sort -z)
+          python3 trusted/ci/eval_packages.py \
+            --target trusted \
+            --merged untrusted \
+            --system "$SYSTEM" \
+            --output "eval-$SYSTEM.json"

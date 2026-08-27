@@ -41,4 +41,4 @@ jobs:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: ./.github/ci/auto_merge.py
+        run: ./ci/auto_merge.py

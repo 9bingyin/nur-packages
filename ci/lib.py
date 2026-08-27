@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+SYSTEMS_PATH = Path(__file__).with_name("systems.json")
 NATIVE_RUNNERS = {
-    "x86_64-linux": "ubuntu-latest",
-    "aarch64-linux": "ubuntu-24.04-arm",
-    "aarch64-darwin": "macos-latest",
+    entry["system"]: entry["runner"] for entry in json.loads(SYSTEMS_PATH.read_text())
 }
 
 

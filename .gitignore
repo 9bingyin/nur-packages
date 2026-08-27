@@ -5,9 +5,9 @@ __pycache__/
 pyrightconfig.json
 scripts/check.py
 .github/actionlint.yaml
-.github/ci/check_maintainers.py
-.github/ci/check_readme.py
-.github/ci/check_workflows.py
+ci/check_maintainers.py
+ci/check_readme.py
+ci/check_workflows.py
 
 result
 result-*
