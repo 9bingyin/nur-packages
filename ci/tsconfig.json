@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"exactOptionalPropertyTypes": true,
+		"module": "Preserve",
+		"moduleResolution": "Bundler",
+		"noEmit": true,
+		"noImplicitOverride": true,
+		"noUncheckedIndexedAccess": true,
+		"strict": true,
+		"target": "ES2024",
+		"types": ["bun"],
+		"verbatimModuleSyntax": true
+	},
+	"include": ["*.ts"]
+}

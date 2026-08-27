@@ -75,6 +75,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
+  passthru.updateScript = ./update.py;
+
   meta = {
     description = "NetEase UU remote desktop access and control tool";
     homepage = "https://uuyc.163.com/";

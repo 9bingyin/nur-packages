@@ -9,6 +9,8 @@ ci/check_maintainers.py
 ci/check_readme.py
 ci/check_workflows.py
 
+node_modules/
+
 result
 result-*
 .ruff_cache

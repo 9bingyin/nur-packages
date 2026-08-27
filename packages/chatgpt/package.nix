@@ -33,6 +33,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
+  passthru.updateScript = ./update.py;
+
   meta = {
     description = "OpenAI's official ChatGPT desktop app";
     homepage = "https://chatgpt.com/";

@@ -50,6 +50,8 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
 
+  passthru.updateScript = ./update.py;
+
   meta = {
     description = "Privacy-focused Chromium browser for macOS";
     homepage = "https://github.com/imputnet/helium";

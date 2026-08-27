@@ -129,6 +129,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   passthru = {
+    updateScript = ./update.py;
     inherit
       mihomo-alpha
       pnpmDeps

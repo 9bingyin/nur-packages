@@ -61,6 +61,13 @@
               projectRootFile = "flake.lock";
               flakeCheck = false;
 
+              programs.biome = {
+                enable = true;
+                includes = [
+                  "ci/*.json"
+                  "ci/*.ts"
+                ];
+              };
               programs.nixfmt.enable = true;
               programs.ruff-format.enable = true;
               programs.shellcheck.enable = true;

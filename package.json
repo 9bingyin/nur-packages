@@ -1,0 +1,11 @@
+{
+  "name": "nur-packages-ci",
+  "private": true,
+  "scripts": {
+    "ci:check": "tsc --project ci/tsconfig.json && bun test ci/ci_test.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.13",
+    "typescript": "5.9.3"
+  }
+}

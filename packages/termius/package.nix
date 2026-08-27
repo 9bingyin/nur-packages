@@ -42,6 +42,8 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
 
+  passthru.updateScript = ./update.py;
+
   meta = {
     description = "Cross-platform SSH client with cloud data sync and more";
     homepage = "https://termius.com/";

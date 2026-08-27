@@ -44,6 +44,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
+  passthru.updateScript = ./update.py;
+
   meta = {
     description = "TeamSpeak voice communication tool (beta version)";
     homepage = "https://teamspeak.com/";

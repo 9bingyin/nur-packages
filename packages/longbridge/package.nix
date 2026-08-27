@@ -131,6 +131,8 @@ stdenv.mkDerivation {
         runHook postInstall
       '';
 
+  passthru.updateScript = ./update.py;
+
   meta = with lib; {
     description = "Professional trading platform for stocks and financial instruments";
     homepage = "https://longbridge.com/";
