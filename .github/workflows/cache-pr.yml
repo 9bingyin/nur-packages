@@ -24,7 +24,6 @@ jobs:
       actions: read
       contents: read
       pull-requests: read
-      statuses: read
     outputs:
       base-sha: ${{ steps.gate.outputs.baseSha }}
       head-sha: ${{ steps.gate.outputs.headSha }}

@@ -3,7 +3,7 @@ import { parseJson, requiredEnvironment } from "./lib.ts";
 
 export type GitHubRequestOptions = Readonly<{
 	body?: unknown;
-	method?: "GET" | "POST";
+	method?: "GET" | "PATCH" | "POST";
 }>;
 
 function apiUrl(path: string): URL {
@@ -36,6 +36,26 @@ export async function githubRequest(
 		);
 	}
 	return text ? parseJson(text, `GitHub API response for ${path}`) : null;
+}
+
+export async function githubRequestPages(
+	path: string,
+): Promise<readonly unknown[]> {
+	const items: unknown[] = [];
+	for (let page = 1; page <= 100; page += 1) {
+		const separator = path.includes("?") ? "&" : "?";
+		const response = await githubRequest(
+			`${path}${separator}per_page=100&page=${page}`,
+		);
+		if (!Array.isArray(response)) {
+			throw new Error(`GitHub API pagination returned a non-array for ${path}`);
+		}
+		items.push(...response);
+		if (response.length < 100) {
+			return items;
+		}
+	}
+	throw new Error(`GitHub API pagination exceeded 100 pages for ${path}`);
 }
 
 export function githubRepository(): string {

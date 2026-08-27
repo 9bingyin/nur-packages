@@ -1,4 +1,4 @@
-name: Update Dependencies
+name: Update
 
 on:
   schedule:
@@ -17,7 +17,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: update-dependencies-${{ github.ref }}
+  group: update-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -61,7 +61,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 8
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout
@@ -105,7 +105,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 8
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Download update
@@ -118,7 +118,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+      - name: Inspect update
+        id: update
+        env:
+          UPDATE_ARTIFACT_DIR: ${{ runner.temp }}/update-artifact
+        run: bun ci/main.ts inspect-update
       - name: Create bot token
+        if: steps.update.outputs.changed == 'true'
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -126,8 +136,8 @@ jobs:
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
-          permission-statuses: write
       - name: Get bot user
+        if: steps.update.outputs.changed == 'true'
         id: bot-user
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -135,6 +145,7 @@ jobs:
         run: |
           echo "id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)" >>"$GITHUB_OUTPUT"
       - name: Configure git
+        if: steps.update.outputs.changed == 'true'
         env:
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
           BOT_USER_ID: ${{ steps.bot-user.outputs.id }}
@@ -144,6 +155,7 @@ jobs:
           git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
           gh auth setup-git
       - name: Publish update
+        if: steps.update.outputs.changed == 'true'
         env:
           AUTOMATION_BOT_USER_ID: ${{ steps.bot-user.outputs.id }}
           BASE_BRANCH: ${{ github.event.repository.default_branch }}

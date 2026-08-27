@@ -7,7 +7,11 @@ import {
 	writeFileSync,
 } from "node:fs";
 import process from "node:process";
-import { githubRepository, githubRequest } from "./github.ts";
+import {
+	githubRepository,
+	githubRequest,
+	githubRequestPages,
+} from "./github.ts";
 import {
 	isRecord,
 	parseJson,
@@ -17,7 +21,12 @@ import {
 	requireRecord,
 	requireString,
 	run,
+	writeOutput,
 } from "./lib.ts";
+import {
+	formatUpdateProvenance,
+	parseUpdateProvenance,
+} from "./update-provenance.ts";
 
 const UPDATE_SCRIPT_EXPRESSION = `
 let
@@ -105,7 +114,6 @@ export type UpdateManifest = Readonly<{
 
 const UPDATE_MANIFEST = "manifest.json";
 const UPDATE_PATCH = "changes.patch";
-const UPDATE_PROVENANCE_CONTEXT = "update provenance";
 const MAX_CHANGED_FILES = 50;
 const MAX_PATCH_BYTES = 5 * 1024 * 1024;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
@@ -252,7 +260,7 @@ export function buildPullRequest(
 
 async function createOrUpdatePullRequest(
 	pullRequest: PullRequest,
-): Promise<void> {
+): Promise<string> {
 	const baseBranch = process.env.BASE_BRANCH ?? "main";
 	const labels = process.env.PR_LABELS ?? "dependencies,automated";
 	const number = await pullRequestNumber(pullRequest.branch);
@@ -268,7 +276,7 @@ async function createOrUpdatePullRequest(
 			pullRequest.body,
 			...labelArguments(labels, "--add-label"),
 		]);
-		return;
+		return number;
 	}
 
 	await run([
@@ -285,9 +293,11 @@ async function createOrUpdatePullRequest(
 		pullRequest.body,
 		...labelArguments(labels),
 	]);
-	if (!(await pullRequestNumber(pullRequest.branch))) {
+	const createdNumber = await pullRequestNumber(pullRequest.branch);
+	if (!createdNumber) {
 		throw new Error("GitHub did not return the created pull request");
 	}
+	return createdNumber;
 }
 
 async function resetWorktree(): Promise<void> {
@@ -782,42 +792,81 @@ async function remoteBranchHead(branch: string): Promise<string | null> {
 	return result.stdout.trim().split(/\s+/)[0] || null;
 }
 
+async function pullRequestComments(
+	pullRequest: string,
+): Promise<readonly Record<string, unknown>[]> {
+	const response = await githubRequestPages(
+		`/repos/${githubRepository()}/issues/${pullRequest}/comments`,
+	);
+	if (!Array.isArray(response)) {
+		throw new Error("GitHub returned invalid pull request comments");
+	}
+	return response.filter(isRecord);
+}
+
+function botProvenance(comment: Record<string, unknown>, botUserId: number) {
+	const user = isRecord(comment.user) ? comment.user : {};
+	return user.id === botUserId ? parseUpdateProvenance(comment.body) : null;
+}
+
 async function hasTrustedProvenance(
+	pullRequest: string,
 	sha: string,
 	botUserId: number,
+	manifest: UpdateManifest,
 ): Promise<boolean> {
-	const response = requireRecord(
-		await githubRequest(`/repos/${githubRepository()}/commits/${sha}/status`),
-		"commit status",
-	);
-	if (!Array.isArray(response.statuses)) {
-		return false;
-	}
-	return response.statuses.some((item) => {
-		const status = isRecord(item) ? item : {};
-		const creator = isRecord(status.creator) ? status.creator : {};
+	return (await pullRequestComments(pullRequest)).some((comment) => {
+		const provenance = botProvenance(comment, botUserId);
 		return (
-			status.context === UPDATE_PROVENANCE_CONTEXT &&
-			status.state === "success" &&
-			creator.id === botUserId
+			provenance?.headSha === sha &&
+			provenance.targetName === manifest.name &&
+			provenance.targetType === manifest.type
 		);
 	});
 }
 
-async function createProvenanceStatus(
-	sha: string,
+async function createProvenanceComment(
+	pullRequest: string,
+	headSha: string,
+	botUserId: number,
 	manifest: UpdateManifest,
 ): Promise<void> {
-	const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
-	await githubRequest(`/repos/${githubRepository()}/statuses/${sha}`, {
-		method: "POST",
-		body: {
-			context: UPDATE_PROVENANCE_CONTEXT,
-			description: `patch ${manifest.patchSha256.slice(0, 16)} base ${manifest.baseSha.slice(0, 12)}`,
-			state: "success",
-			target_url: `${serverUrl}/${githubRepository()}/actions/runs/${manifest.runId}`,
-		},
+	const body = formatUpdateProvenance({
+		baseSha: manifest.baseSha,
+		headSha,
+		patchSha256: manifest.patchSha256,
+		runAttempt: manifest.runAttempt,
+		runId: manifest.runId,
+		targetName: manifest.name,
+		targetType: manifest.type,
 	});
+	const existing = (await pullRequestComments(pullRequest)).find(
+		(comment) => botProvenance(comment, botUserId) !== null,
+	);
+	const commentId = existing?.id;
+	if (typeof commentId === "number" && Number.isInteger(commentId)) {
+		await githubRequest(
+			`/repos/${githubRepository()}/issues/comments/${commentId}`,
+			{ method: "PATCH", body: { body } },
+		);
+		return;
+	}
+	await githubRequest(
+		`/repos/${githubRepository()}/issues/${pullRequest}/comments`,
+		{ method: "POST", body: { body } },
+	);
+}
+
+export function inspectUpdate(): void {
+	const directory = requiredEnvironment("UPDATE_ARTIFACT_DIR");
+	const manifest = parseUpdateManifest(
+		readJsonFile(`${directory}/${UPDATE_MANIFEST}`),
+	);
+	const patch = readFileSync(`${directory}/${UPDATE_PATCH}`, "utf8");
+	if (sha256(patch) !== manifest.patchSha256) {
+		throw new Error("Update patch digest does not match its manifest");
+	}
+	writeOutput("changed", String(!manifest.noChanges));
 }
 
 export async function publishUpdate(): Promise<void> {
@@ -864,7 +913,17 @@ export async function publishUpdate(): Promise<void> {
 	}
 	const botUserId = positiveEnvironmentInteger("AUTOMATION_BOT_USER_ID");
 	const oldHead = await remoteBranchHead(branch);
-	if (oldHead && !(await hasTrustedProvenance(oldHead, botUserId))) {
+	const existingPullRequest = await pullRequestNumber(branch);
+	if (
+		oldHead &&
+		(!existingPullRequest ||
+			!(await hasTrustedProvenance(
+				existingPullRequest,
+				oldHead,
+				botUserId,
+				manifest,
+			)))
+	) {
 		console.log(
 			`::warning::Skipping ${branch} because it contains manual changes`,
 		);
@@ -881,9 +940,9 @@ export async function publishUpdate(): Promise<void> {
 	const headSha = (
 		await run(["git", "rev-parse", "HEAD"], { capture: true })
 	).stdout.trim();
-	await createProvenanceStatus(headSha, manifest);
-	await createOrUpdatePullRequest({
+	const pullRequest = await createOrUpdatePullRequest({
 		...manifest.pullRequest,
 		body: `${manifest.pullRequest.body}\n\n<!-- update-run: ${manifest.runId}; patch: ${manifest.patchSha256} -->`,
 	});
+	await createProvenanceComment(pullRequest, headSha, botUserId, manifest);
 }

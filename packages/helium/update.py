@@ -26,8 +26,6 @@ def github_headers() -> dict[str, str]:
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    elif os.environ.get("GITHUB_ACTIONS"):
-        raise RuntimeError("GITHUB_TOKEN must be set in CI")
     return headers
 
 

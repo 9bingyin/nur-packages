@@ -36,6 +36,10 @@ import {
 	validateChangedFiles,
 	worktreeCommand,
 } from "./update.ts";
+import {
+	formatUpdateProvenance,
+	parseUpdateProvenance,
+} from "./update-provenance.ts";
 
 const REVIEW_REVISION = {
 	baseBranch: "main",
@@ -303,6 +307,23 @@ test("review builds added and changed packages for one system", () => {
 test("checksSucceeded requires every job to succeed", () => {
 	assert.equal(checksSucceeded(["success", "success"]), true);
 	assert.equal(checksSucceeded(["success", "failure"]), false);
+});
+
+test("update provenance binds the exact base and head revisions", () => {
+	const provenance = {
+		baseSha: "1".repeat(40),
+		headSha: "2".repeat(40),
+		patchSha256: "3".repeat(64),
+		runAttempt: 1,
+		runId: 2,
+		targetName: "package",
+		targetType: "package" as const,
+	};
+	assert.deepEqual(
+		parseUpdateProvenance(formatUpdateProvenance(provenance)),
+		provenance,
+	);
+	assert.equal(parseUpdateProvenance("manual comment"), null);
 });
 
 test("update patches stay inside the selected package", () => {

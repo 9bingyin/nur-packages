@@ -10,7 +10,7 @@ import { mergeCachedPullRequest } from "./merge.ts";
 import { preparePullRequest } from "./prepare-pr.ts";
 import { publishStatus } from "./publish-status.ts";
 import { review } from "./review.ts";
-import { prepareUpdate, publishUpdate } from "./update.ts";
+import { inspectUpdate, prepareUpdate, publishUpdate } from "./update.ts";
 
 function usage(): string {
 	return [
@@ -26,6 +26,7 @@ function usage(): string {
 		"  eval-compare",
 		"  eval-packages",
 		"  eval-snapshot",
+		"  inspect-update",
 		"  lix",
 		"  merge",
 		"  prepare-pr",
@@ -69,6 +70,9 @@ async function main(args: readonly string[]): Promise<void> {
 			return;
 		case "eval-snapshot":
 			await evalSnapshot(commandArgs);
+			return;
+		case "inspect-update":
+			inspectUpdate();
 			return;
 		case "lix":
 			await checkLix(commandArgs);

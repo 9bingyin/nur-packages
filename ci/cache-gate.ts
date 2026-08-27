@@ -1,7 +1,11 @@
 import { mkdirSync, rmSync } from "node:fs";
 import process from "node:process";
 import { parseEvalReport, type ReviewRevision } from "./eval-compare.ts";
-import { githubRepository, githubRequest } from "./github.ts";
+import {
+	githubRepository,
+	githubRequest,
+	githubRequestPages,
+} from "./github.ts";
 import {
 	compactJson,
 	isRecord,
@@ -15,9 +19,9 @@ import {
 } from "./lib.ts";
 import { validateMergeParents } from "./prepare-pr.ts";
 import { parseRawDiff } from "./update.ts";
+import { parseUpdateProvenance } from "./update-provenance.ts";
 
 const DEPENDABOT_USER_ID = 49_699_333;
-const UPDATE_PROVENANCE_CONTEXT = "update provenance";
 const EXPECTED_WORKFLOW_PATH = ".github/workflows/pull-request-target.yml";
 const PRIVILEGED_WORKFLOWS = new Set([
 	".github/workflows/build-cache.yml",
@@ -27,9 +31,10 @@ const PRIVILEGED_WORKFLOWS = new Set([
 	".github/workflows/check.yml",
 	".github/workflows/eval.yml",
 	".github/workflows/lint.yml",
+	".github/workflows/lix.yml",
 	".github/workflows/pull-request-target.yml",
 	".github/workflows/review.yml",
-	".github/workflows/update-dependencies.yml",
+	".github/workflows/update.yml",
 ]);
 const ACTION_REFERENCE_PATTERN =
 	/^\s*uses:\s+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?)@([0-9a-f]{40})(?:\s+#.*)?$/;
@@ -161,21 +166,26 @@ async function validateMergeCommit(revision: ReviewRevision): Promise<void> {
 	validateMergeParents(parents, revision.baseSha, revision.headSha);
 }
 
-async function hasProvenance(sha: string, botUserId: number): Promise<boolean> {
-	const response = requireRecord(
-		await githubRequest(`/repos/${githubRepository()}/commits/${sha}/status`),
-		"commit status",
+async function hasProvenance(
+	pullRequest: number,
+	baseSha: string,
+	headSha: string,
+	botUserId: number,
+): Promise<boolean> {
+	const response = await githubRequestPages(
+		`/repos/${githubRepository()}/issues/${pullRequest}/comments`,
 	);
-	if (!Array.isArray(response.statuses)) {
+	if (!Array.isArray(response)) {
 		return false;
 	}
-	return response.statuses.some((item) => {
-		const status = isRecord(item) ? item : {};
-		const creator = isRecord(status.creator) ? status.creator : {};
+	return response.some((item) => {
+		const comment = isRecord(item) ? item : {};
+		const user = isRecord(comment.user) ? comment.user : {};
+		const provenance = parseUpdateProvenance(comment.body);
 		return (
-			status.context === UPDATE_PROVENANCE_CONTEXT &&
-			status.state === "success" &&
-			creator.id === botUserId
+			user.id === botUserId &&
+			provenance?.baseSha === baseSha &&
+			provenance.headSha === headSha
 		);
 	});
 }
@@ -419,7 +429,12 @@ export async function cacheGate(): Promise<void> {
 		pullRequest,
 		revision.repositoryId,
 		botUserId,
-		await hasProvenance(revision.headSha, botUserId),
+		await hasProvenance(
+			revision.pullRequestNumber,
+			revision.baseSha,
+			revision.headSha,
+			botUserId,
+		),
 		files,
 		diff,
 	);
