@@ -20,6 +20,12 @@ rustPlatform.buildRustPackage rec {
 
   nativeCheckInputs = [ git ];
 
+  checkFlags = [
+    # Wall-clock scaling tests are not deterministic under parallel Nix builds.
+    "--skip=fuzzy_match_scales_linearly"
+    "--skip=index_build_scales_linearly"
+  ];
+
   postInstall = ''
     install -Dm644 herdr-plugin.toml "$out/herdr-plugin.toml"
     install -Dm644 config.example.toml "$out/config.example.toml"

@@ -1,4 +1,5 @@
 {
+  _7zz,
   lib,
   stdenvNoCC,
   fetchurl,
@@ -13,6 +14,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     hash = "sha256-gguuh+RAVtWZJNVDwwVA98VtNLnHqBaQP1sdopIU44k=";
   };
 
+  nativeBuildInputs = [ _7zz ];
+
   dontUnpack = true;
   dontPatch = true;
   dontConfigure = true;
@@ -23,18 +26,13 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   installPhase = ''
     runHook preInstall
 
-    mountPoint="$TMPDIR/Zed"
-    mkdir "$mountPoint"
-    trap '/usr/bin/hdiutil detach "$mountPoint" -quiet || true' EXIT
-
-    /usr/bin/hdiutil attach -nobrowse -readonly -mountpoint "$mountPoint" "$src" >/dev/null
+    unpacked="$TMPDIR/Zed"
+    mkdir "$unpacked"
+    7zz x -snld -sns- -o"$unpacked" "$src"
 
     mkdir -p "$out/Applications" "$out/bin"
-    /usr/bin/ditto "$mountPoint/Zed.app" "$out/Applications/Zed.app"
+    cp -R "$unpacked/Zed.app" "$out/Applications/Zed.app"
     ln -s "$out/Applications/Zed.app/Contents/MacOS/cli" "$out/bin/zeditor"
-
-    /usr/bin/hdiutil detach "$mountPoint" -quiet
-    trap - EXIT
 
     runHook postInstall
   '';

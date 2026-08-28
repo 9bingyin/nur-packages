@@ -1,4 +1,5 @@
 {
+  _7zz,
   lib,
   stdenvNoCC,
   fetchurl,
@@ -16,7 +17,10 @@ stdenvNoCC.mkDerivation {
     hash = "sha256-QQT3dtBKQvnGi3ySsgaVeXGqKIJ/iys5fDApZnDlt5E=";
   };
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [
+    _7zz
+    makeWrapper
+  ];
 
   dontUnpack = true;
   dontConfigure = true;
@@ -27,20 +31,12 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    image="$TMPDIR/Helium.dmg"
-    mountPoint="$TMPDIR/Helium"
-    cp "$src" "$image"
-    mkdir "$mountPoint"
-    cleanup() {
-      /usr/bin/hdiutil detach "$mountPoint" -quiet || true
-    }
-    trap cleanup EXIT
-
-    # APFS DMG: undmg cannot extract it. Copy first to avoid a mounted original.
-    /usr/bin/hdiutil attach -nobrowse -readonly -mountpoint "$mountPoint" "$image" >/dev/null
+    unpacked="$TMPDIR/Helium"
+    mkdir "$unpacked"
+    7zz x -snld -sns- -o"$unpacked" "$src"
 
     mkdir -p "$out/Applications" "$out/bin"
-    cp -R "$mountPoint/Helium.app" "$out/Applications/"
+    cp -R "$unpacked/Helium.app" "$out/Applications/"
 
     makeWrapper \
       "$out/Applications/Helium.app/Contents/MacOS/Helium" \

@@ -1,4 +1,5 @@
 {
+  _7zz,
   lib,
   stdenvNoCC,
   fetchurl,
@@ -14,7 +15,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     hash = "sha256-JEu1AKzPtW8AbVZ4ruzuRTKo6xo9+qolnahzEMs3JB8=";
   };
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [
+    _7zz
+    makeWrapper
+  ];
 
   dontUnpack = true;
   dontPatch = true;
@@ -26,20 +30,15 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   installPhase = ''
     runHook preInstall
 
-    mountPoint="$TMPDIR/AyuGram"
-    mkdir "$mountPoint"
-    trap '/usr/bin/hdiutil detach "$mountPoint" -quiet || true' EXIT
-
-    /usr/bin/hdiutil attach -nobrowse -readonly -mountpoint "$mountPoint" "$src" >/dev/null
+    unpacked="$TMPDIR/AyuGram"
+    mkdir "$unpacked"
+    7zz x -snld -sns- -o"$unpacked" "$src"
 
     app="$out/Applications/AyuGram.app"
     mkdir -p "$out/Applications" "$out/bin"
-    /usr/bin/ditto "$mountPoint/AyuGram.app" "$app"
+    cp -R "$unpacked/AyuGram.app" "$app"
     /usr/bin/codesign --force --deep --sign - "$app"
     makeWrapper "$app/Contents/MacOS/AyuGram" "$out/bin/ayugram-desktop"
-
-    /usr/bin/hdiutil detach "$mountPoint" -quiet
-    trap - EXIT
 
     runHook postInstall
   '';

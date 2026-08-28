@@ -1,4 +1,5 @@
 {
+  _7zz,
   lib,
   stdenvNoCC,
   fetchurl,
@@ -17,7 +18,10 @@ stdenvNoCC.mkDerivation {
     hash = "sha512-w3b8pZD4Hb8fp4mqdKq2bOH4jp6k7T1WEpVJH8WivQoCM3dyluI8M0agiPxvy/NE97WOYIh0/kmPBjXQQ4r6PA==";
   };
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [
+    _7zz
+    makeWrapper
+  ];
 
   dontUnpack = true;
   dontPatch = true;
@@ -31,10 +35,10 @@ stdenvNoCC.mkDerivation {
 
     unpacked="$TMPDIR/Termius"
     mkdir "$unpacked"
-    /usr/bin/ditto -x -k "$src" "$unpacked"
+    7zz x -snld -sns- -o"$unpacked" "$src"
 
     mkdir -p "$out/Applications" "$out/bin"
-    /usr/bin/ditto "$unpacked/Termius.app" "$out/Applications/Termius.app"
+    cp -R "$unpacked/Termius.app" "$out/Applications/Termius.app"
     makeWrapper \
       "$out/Applications/Termius.app/Contents/MacOS/Termius" \
       "$out/bin/termius-app"
