@@ -1,5 +1,7 @@
 {
   _7zz,
+  cctools,
+  darwin,
   lib,
   stdenvNoCC,
   fetchurl,
@@ -17,6 +19,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [
     _7zz
+    cctools
+    darwin.sigtool
     makeWrapper
   ];
 
@@ -37,7 +41,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     app="$out/Applications/AyuGram.app"
     mkdir -p "$out/Applications" "$out/bin"
     cp -R "$unpacked/AyuGram.app" "$app"
-    /usr/bin/codesign --force --deep --sign - "$app"
+    codesign --force --sign - "$app/Contents/MacOS/AyuGram"
     makeWrapper "$app/Contents/MacOS/AyuGram" "$out/bin/ayugram-desktop"
 
     runHook postInstall
