@@ -79,6 +79,7 @@ jobs:
           bun-version: 1.3.13
       - name: Prepare updates
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           INTERNET_ARCHIVE_ACCESS_KEY: ${{ secrets.INTERNET_ARCHIVE_ACCESS_KEY }}
           INTERNET_ARCHIVE_SECRET_KEY: ${{ secrets.INTERNET_ARCHIVE_SECRET_KEY }}
           UPDATE_BATCH: ${{ toJSON(matrix.targets) }}
