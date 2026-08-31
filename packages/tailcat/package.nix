@@ -2,7 +2,6 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
-  nix-update-script,
   versionCheckHook,
 }:
 
@@ -35,8 +34,6 @@ buildGoModule (finalAttrs: {
   doInstallCheck = true;
   nativeInstallCheckInputs = [ versionCheckHook ];
   versionCheckProgramArg = "--version";
-
-  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Like netcat, but over Tailscale's data plane, without Tailscale's control plane";
