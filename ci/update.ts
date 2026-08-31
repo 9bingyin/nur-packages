@@ -80,7 +80,11 @@ type CommitChange = Readonly<{
 
 type ScriptResult =
 	| Readonly<{ kind: "plain" }>
-	| Readonly<{ changes: readonly CommitChange[]; kind: "commit" }>;
+	| Readonly<{
+			allowSameVersion: boolean;
+			changes: readonly CommitChange[];
+			kind: "commit";
+	  }>;
 
 type PullRequest = Readonly<{
 	body: string;
@@ -197,6 +201,20 @@ export function parseCommitChanges(value: unknown): readonly CommitChange[] {
 			commitMessage: commitMessage ?? null,
 		};
 	});
+}
+
+export function updateVersionIsValid(
+	currentVersion: string,
+	newVersion: string,
+	allowSameVersion: boolean,
+	changes: readonly CommitChange[],
+): boolean {
+	return (
+		newVersion !== "unknown" &&
+		(newVersion !== currentVersion ||
+			(allowSameVersion &&
+				changes.some(({ commitMessage }) => Boolean(commitMessage?.trim()))))
+	);
 }
 
 function branchName(_updateType: UpdateType, name: string): string {
@@ -389,6 +407,7 @@ async function runUpdateScript(script: UpdateScript): Promise<ScriptResult> {
 		return { kind: "plain" };
 	}
 	return {
+		allowSameVersion: script.supportedFeatures.includes("same-version"),
 		changes: parseCommitChanges(
 			parseJson(result.stdout, "update script commit output"),
 		),
@@ -712,13 +731,20 @@ export async function prepareUpdate(): Promise<void> {
 			? await packageVersion(target.name, system)
 			: await flakeInputRevision(target.name)
 		: target.currentVersion;
+	const changes = scriptResult.kind === "commit" ? scriptResult.changes : [];
+	const allowSameVersion =
+		scriptResult.kind === "commit" && scriptResult.allowSameVersion;
 	if (
 		changed &&
-		(newVersion === "unknown" || newVersion === target.currentVersion)
+		!updateVersionIsValid(
+			target.currentVersion,
+			newVersion,
+			allowSameVersion,
+			changes,
+		)
 	) {
 		throw new Error(`${target.name} did not change its version`);
 	}
-	const changes = scriptResult.kind === "commit" ? scriptResult.changes : [];
 	const pullRequest = buildPullRequest(
 		updateType,
 		target.name,

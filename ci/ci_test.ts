@@ -34,6 +34,7 @@ import {
 	parseRawDiff,
 	parseTarget,
 	parseUpdateScript,
+	updateVersionIsValid,
 	validateChangedFiles,
 	worktreeCommand,
 } from "./update.ts";
@@ -416,6 +417,33 @@ test("update protocol accepts nixpkgs updateScript metadata", () => {
 	assert.deepEqual(parseCommitChanges([{ commitMessage: "foo: 1.0 -> 2.0" }]), [
 		{ commitBody: null, commitMessage: "foo: 1.0 -> 2.0" },
 	]);
+});
+
+test("same-version updates require an explicit feature and commit message", () => {
+	const internalUpdate = [
+		{
+			commitBody: "Update bundled service.",
+			commitMessage: "foo: update bundled service",
+		},
+	];
+	assert.equal(updateVersionIsValid("1.0", "1.0", true, internalUpdate), true);
+	assert.equal(
+		updateVersionIsValid("1.0", "1.0", false, internalUpdate),
+		false,
+	);
+	assert.equal(updateVersionIsValid("1.0", "1.0", true, []), false);
+	for (const commitMessage of [null, "", "  "]) {
+		assert.equal(
+			updateVersionIsValid("1.0", "1.0", true, [
+				{ commitBody: "Update bundled service.", commitMessage },
+			]),
+			false,
+		);
+	}
+	assert.equal(
+		updateVersionIsValid("1.0", "unknown", true, internalUpdate),
+		false,
+	);
 });
 
 test("source update scripts run from the writable worktree", () => {

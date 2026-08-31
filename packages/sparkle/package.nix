@@ -33,16 +33,16 @@ let
 
   sparkle-service = buildGoModule {
     pname = "sparkle-service";
-    version = "0-unstable-2026-08-01";
+    version = "0-unstable-2026-08-30";
 
     src = fetchFromGitHub {
       owner = "xishang0128";
       repo = "sparkle-service";
-      rev = "3cabb61aaf446444d71acbe06a3abdd768d2e80e";
-      hash = "sha256-djXVcBDf5whSM6U0qBydFeX+XbHnmKTVGDet6aA3a1g=";
+      rev = "ad37ea5eda34fa665f2fded47999a85f303a0e6e";
+      hash = "sha256-64XK5VzxlYe1Fg2ex7WElAc7tiaf/p24Koard5YsGds=";
     };
 
-    vendorHash = "sha256-GXAP6pCKyy41UyMfz1X9F8GeAbyYZi4suPXDryKINOU=";
+    vendorHash = "sha256-akHi2v9HeHCF4TlE9IixJdiIbnwswDyJ9uWcjkZUkYE=";
 
     meta.mainProgram = "sparkle-service";
   };
@@ -129,7 +129,13 @@ stdenvNoCC.mkDerivation {
   '';
 
   passthru = {
-    updateScript = ./update.py;
+    updateScript = {
+      command = ./update.py;
+      supportedFeatures = [
+        "commit"
+        "same-version"
+      ];
+    };
     inherit
       mihomo-alpha
       pnpmDeps
