@@ -22,24 +22,24 @@
 }:
 let
   pname = "sparkle";
-  version = "1.26.7";
+  version = "1.26.8";
 
   src = fetchFromGitHub {
     owner = "xishang0128";
     repo = "sparkle";
     tag = version;
-    hash = "sha256-R9FVlt0rLxgIpeIJbwoIIYPmpP3LKoRWyt7u4ohbN4E=";
+    hash = "sha256-YXQs49FJ5jtiUP6QfNpXaEi+3zhEQR+BT1Ei37wMGBc=";
   };
 
   sparkle-service = buildGoModule {
     pname = "sparkle-service";
-    version = "0-unstable-2026-08-30";
+    version = "0-unstable-2026-08-31";
 
     src = fetchFromGitHub {
       owner = "xishang0128";
       repo = "sparkle-service";
-      rev = "ad37ea5eda34fa665f2fded47999a85f303a0e6e";
-      hash = "sha256-64XK5VzxlYe1Fg2ex7WElAc7tiaf/p24Koard5YsGds=";
+      rev = "36eef824fadc70b1bb410320823e576dd741ba39";
+      hash = "sha256-fCYYQVvOU3OYZNAmrp688TAWXx+XDZzHcsD8e5bh59s=";
     };
 
     vendorHash = "sha256-akHi2v9HeHCF4TlE9IixJdiIbnwswDyJ9uWcjkZUkYE=";
@@ -55,7 +55,7 @@ let
       pnpm
       ;
     fetcherVersion = 4;
-    hash = "sha256-hSozWInESlJhEjNKbVLgRJG+G7dFgFb+834rugHh05c=";
+    hash = "sha256-VTeLrZz6nVfVmVJHMwkGTfVYl7Qs2ph3uHtOE8qoq/Q=";
   };
 in
 stdenvNoCC.mkDerivation {
