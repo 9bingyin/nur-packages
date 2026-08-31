@@ -1,4 +1,4 @@
 --version=branch=Alpha
-# 上游有滚动标签 Prerelease-Alpha，nix-update 会把它当成快照版本的前缀，
-# 这里只接受 0-unstable-<日期> 形式的候选版本。
---version-regex=^(0-unstable-[0-9]{4}-[0-9]{2}-[0-9]{2})$
+# Prerelease-Alpha 是跟随 Alpha HEAD 移动的标签，不是版本基数。
+# 仅接受以稳定版本为基数的快照版本，并去掉标签的 v 前缀。
+--version-regex=^v([0-9]+(?:\.[0-9]+)+-unstable-[0-9]{4}-[0-9]{2}-[0-9]{2})$
