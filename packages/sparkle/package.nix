@@ -28,7 +28,7 @@ let
     owner = "xishang0128";
     repo = "sparkle";
     tag = version;
-    hash = "sha256-YXQs49FJ5jtiUP6QfNpXaEi+3zhEQR+BT1Ei37wMGBc=";
+    hash = "sha256-hAUc8T+xHRDwP0mj8wyd0+pNR5B5QEj4PXZVookxJeE=";
   };
 
   sparkle-service = buildGoModule {
