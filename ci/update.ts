@@ -213,7 +213,8 @@ export function updateVersionIsValid(
 		newVersion !== "unknown" &&
 		(newVersion !== currentVersion ||
 			(allowSameVersion &&
-				changes.some(({ commitMessage }) => Boolean(commitMessage?.trim()))))
+				(changes.length === 0 ||
+					changes.some(({ commitMessage }) => Boolean(commitMessage?.trim())))))
 	);
 }
 
@@ -254,13 +255,18 @@ export function buildPullRequest(
 	newVersion: string,
 	changes: readonly CommitChange[] = [],
 ): PullRequest {
+	const sameVersion = currentVersion === newVersion;
 	const defaultTitle =
 		updateType === "package"
-			? `${name}: ${currentVersion} -> ${newVersion}`
+			? sameVersion
+				? `${name}: refresh ${newVersion}`
+				: `${name}: ${currentVersion} -> ${newVersion}`
 			: `flake.lock: update ${name}`;
 	const defaultBody =
 		updateType === "package"
-			? `Automated update of \`${name}\` from \`${currentVersion}\` to \`${newVersion}\`.`
+			? sameVersion
+				? `Automated refresh of \`${name}\` at version \`${newVersion}\`.`
+				: `Automated update of \`${name}\` from \`${currentVersion}\` to \`${newVersion}\`.`
 			: `Automated update of flake input \`${name}\` from \`${currentVersion}\` to \`${newVersion}\`.`;
 	const title =
 		changes.find(({ commitMessage }) => commitMessage)?.commitMessage ??
@@ -733,7 +739,7 @@ export async function prepareUpdate(): Promise<void> {
 		: target.currentVersion;
 	const changes = scriptResult.kind === "commit" ? scriptResult.changes : [];
 	const allowSameVersion =
-		scriptResult.kind === "commit" && scriptResult.allowSameVersion;
+		scriptResult.kind === "plain" || scriptResult.allowSameVersion;
 	if (
 		changed &&
 		!updateVersionIsValid(

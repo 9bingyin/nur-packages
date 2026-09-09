@@ -419,19 +419,19 @@ test("update protocol accepts nixpkgs updateScript metadata", () => {
 	]);
 });
 
-test("same-version updates require an explicit feature and commit message", () => {
+test("same-version updates allow nix-update and require metadata from custom scripts", () => {
 	const internalUpdate = [
 		{
 			commitBody: "Update bundled service.",
 			commitMessage: "foo: update bundled service",
 		},
 	];
+	assert.equal(updateVersionIsValid("1.0", "1.0", true, []), true);
 	assert.equal(updateVersionIsValid("1.0", "1.0", true, internalUpdate), true);
 	assert.equal(
 		updateVersionIsValid("1.0", "1.0", false, internalUpdate),
 		false,
 	);
-	assert.equal(updateVersionIsValid("1.0", "1.0", true, []), false);
 	for (const commitMessage of [null, "", "  "]) {
 		assert.equal(
 			updateVersionIsValid("1.0", "1.0", true, [
@@ -486,5 +486,11 @@ test("update target and pull request metadata stay compatible with workflow JSON
 		branch: "update/foo",
 		commitMessage: "foo: 1.0 -> 2.0",
 		title: "foo: 1.0 -> 2.0",
+	});
+	assert.deepEqual(buildPullRequest("package", "foo", "1.0", "1.0"), {
+		body: "Automated refresh of `foo` at version `1.0`.",
+		branch: "update/foo",
+		commitMessage: "foo: refresh 1.0",
+		title: "foo: refresh 1.0",
 	});
 });
