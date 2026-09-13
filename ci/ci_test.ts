@@ -38,7 +38,11 @@ import {
 	validateChangedFiles,
 	worktreeCommand,
 } from "./update.ts";
-import { parseUpdateBatch } from "./update-batch.ts";
+import {
+	parseUpdateBatch,
+	updateBatchIsFatal,
+	updateBatchSummary,
+} from "./update-batch.ts";
 import {
 	formatUpdateProvenance,
 	parseUpdateProvenance,
@@ -244,6 +248,26 @@ test("discovery builds package and flake input groups", () => {
 		[["x86_64-linux", 2]],
 	);
 	assert.equal(parseUpdateBatch(batches.include[0]?.targets).length, 2);
+});
+
+test("update batch fails only when every target fails", () => {
+	assert.equal(updateBatchIsFatal(0, 2), false);
+	assert.equal(updateBatchIsFatal(1, 2), false);
+	assert.equal(updateBatchIsFatal(2, 2), true);
+});
+
+test("update batch summary reports the failed targets", () => {
+	assert.equal(
+		updateBatchSummary([], 2),
+		"Update batch: 2/2 targets succeeded.\n",
+	);
+	const summary = updateBatchSummary(
+		["package-foo: boom", "package-bar: bang"],
+		3,
+	);
+	assert.match(summary, /^Update batch: 1\/3 targets succeeded\.$/m);
+	assert.match(summary, /package-foo: boom/);
+	assert.match(summary, /package-bar: bang/);
 });
 
 test("eval comparison reports added, removed and changed packages", () => {

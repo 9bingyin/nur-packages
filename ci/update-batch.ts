@@ -10,6 +10,7 @@ import { join } from "node:path";
 import process from "node:process";
 import type { MatrixItem } from "./discovery.ts";
 import {
+	appendStepSummary,
 	compactJson,
 	parseJson,
 	prettyJson,
@@ -181,6 +182,35 @@ async function runWorkers(
 	return failures;
 }
 
+export function updateBatchSummary(
+	failures: readonly string[],
+	total: number,
+): string {
+	const succeeded = total - failures.length;
+	if (failures.length === 0) {
+		return `Update batch: ${succeeded}/${total} targets succeeded.\n`;
+	}
+	return [
+		`Update batch: ${succeeded}/${total} targets succeeded.`,
+		"",
+		"```",
+		...failures,
+		"```",
+		"",
+	].join("\n");
+}
+
+export function updateBatchIsFatal(
+	failureCount: number,
+	targetCount: number,
+): boolean {
+	return failureCount > 0 && failureCount === targetCount;
+}
+
+function firstLine(text: string): string {
+	return text.split("\n")[0] ?? text;
+}
+
 export async function prepareUpdateBatch(): Promise<void> {
 	const repository = realpathSync(".");
 	const artifactRoot = requiredEnvironment("UPDATE_BATCH_DIR");
@@ -203,8 +233,14 @@ export async function prepareUpdateBatch(): Promise<void> {
 			join(artifactRoot, "batch-result.json"),
 			prettyJson({ failures, total: targets.length }),
 		);
-		if (failures.length > 0) {
-			throw new Error(`Update batch failed:\n${failures.join("\n")}`);
+		for (const failure of failures) {
+			console.warn(`::warning::${firstLine(failure)}`);
+		}
+		appendStepSummary(updateBatchSummary(failures, targets.length));
+		if (updateBatchIsFatal(failures.length, targets.length)) {
+			throw new Error(
+				`Update batch failed for every target:\n${failures.join("\n")}`,
+			);
 		}
 	} finally {
 		for (const { directory } of worktrees) {
