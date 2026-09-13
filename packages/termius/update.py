@@ -23,10 +23,16 @@ APPCAST_URL = "https://autoupdate.termius.com/mac-arm64/latest-mac.yml"
 SOURCE_URL = "https://autoupdate.termius.com/mac-arm64/Termius.zip"
 SPN2_SAVE_URL = "https://web.archive.org/save"
 SPN2_STATUS_URL = "https://web.archive.org/save/status"
+CDX_API_URL = "https://web.archive.org/cdx/search/cdx"
 USER_AGENT = "9bingyin-nur-packages-updater"
 HTTP_RETRY_STATUSES = {429, 503}
 MAX_HTTP_RETRIES = 4
 CAPTURE_TIMEOUT_SECONDS = 600
+REPLAY_POLL_SECONDS = 20
+
+
+class SkipUpdate(RuntimeError):
+    """The Wayback Machine cannot provide the ZIP now; the next run retries."""
 
 
 def run(command: list[str]) -> str:
@@ -101,13 +107,6 @@ def wayback_url(timestamp: str) -> str:
     return f"https://web.archive.org/web/{timestamp}id_/{SOURCE_URL}"
 
 
-def timestamp_from_url(url: str) -> str:
-    match = re.search(r"/web/([0-9]{14})(?:id_|if_)?/", url)
-    if match is None:
-        raise RuntimeError(f"Wayback Machine returned an unexpected URL: {url!r}")
-    return match.group(1)
-
-
 def is_string_mapping(value: object) -> TypeGuard[dict[str, object]]:
     return isinstance(value, dict) and all(
         isinstance(key, str) for key in cast(dict[object, object], value)
@@ -180,9 +179,12 @@ def save_snapshot() -> str:
         ).encode(),
         timeout=60,
     )
-    job_id = string_field(
-        capture, "job_id", "Wayback Machine returned no capture job id"
-    )
+    job_id = capture.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        raise SkipUpdate(
+            "the Wayback Machine refused the capture: "
+            f"{json.dumps(capture, ensure_ascii=False, sort_keys=True)}"
+        )
 
     deadline = time.monotonic() + CAPTURE_TIMEOUT_SECONDS
     delay = 5.0
@@ -200,20 +202,15 @@ def save_snapshot() -> str:
                 raise RuntimeError(
                     f"Wayback Machine returned an invalid timestamp: {timestamp!r}"
                 )
-            request = urllib.request.Request(
-                wayback_url(timestamp),
-                headers={"User-Agent": USER_AGENT},
-                method="HEAD",
-            )
-            with urllib.request.urlopen(request, timeout=120) as response:
-                return timestamp_from_url(response.geturl())
+            wait_for_capture(timestamp)
+            return timestamp
         if state == "error":
             message = (
                 status.get("message") or status.get("status_ext") or "unknown error"
             )
-            raise RuntimeError(f"Wayback Machine capture failed: {message}")
+            raise SkipUpdate(f"the Wayback Machine capture failed: {message}")
         delay = min(delay * 1.5, 20.0)
-    raise RuntimeError("Wayback Machine capture timed out")
+    raise SkipUpdate("the Wayback Machine capture timed out")
 
 
 def archive_hash(timestamp: str) -> str:
@@ -227,6 +224,71 @@ def archive_hash(timestamp: str) -> str:
         raise RuntimeError("nix store prefetch-file returned no store path")
 
     return run(["nix", "hash", "file", "--type", "sha512", "--sri", store_path]).strip()
+
+
+def cdx_timestamps(*parameters: tuple[str, str]) -> tuple[str, ...]:
+    """Timestamps of the archived captures the Wayback Machine reports."""
+    query = urllib.parse.urlencode(
+        {"url": SOURCE_URL, "output": "json", "fl": "timestamp", **dict(parameters)}
+    )
+    request = urllib.request.Request(
+        f"{CDX_API_URL}?{query}", headers={"User-Agent": USER_AGENT}
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        payload: object = json.loads(response.read().decode())
+    if not isinstance(payload, list):
+        raise RuntimeError("Wayback Machine CDX API returned a non-array payload")
+    return tuple(
+        value
+        for row in payload
+        if isinstance(row, list)
+        for value in row
+        if isinstance(value, str) and re.fullmatch(r"[0-9]{14}", value)
+    )
+
+
+def wait_for_capture(timestamp: str) -> None:
+    """Wait until the Wayback Machine indexes a new capture.
+
+    A fresh capture is not replayable before it is indexed. The Wayback Machine
+    serves the previous capture of the same URL until then, so hashing too early
+    compares the previous content against the new digest and rejects it.
+    """
+    deadline = time.monotonic() + CAPTURE_TIMEOUT_SECONDS
+    while True:
+        if timestamp in cdx_timestamps(("from", timestamp), ("to", timestamp)):
+            return
+        if time.monotonic() >= deadline:
+            raise SkipUpdate(f"the capture at {timestamp} is not indexed")
+        time.sleep(REPLAY_POLL_SECONDS)
+
+
+def latest_capture() -> str | None:
+    """Timestamp of the newest complete capture of the source URL."""
+    timestamps = cdx_timestamps(("filter", "statuscode:200"), ("limit", "-1"))
+    return max(timestamps, default=None)
+
+
+def resolve_timestamp(hash_value: str) -> str:
+    """A Wayback timestamp whose archived content matches the appcast digest."""
+    captured: str | None = None
+    try:
+        captured = save_snapshot()
+    except SkipUpdate as error:
+        reason = str(error)
+    else:
+        if archive_hash(captured) == hash_value:
+            return captured
+        reason = f"the capture at {captured} does not match the appcast digest"
+
+    existing = latest_capture()
+    if (
+        existing is not None
+        and existing != captured
+        and archive_hash(existing) == hash_value
+    ):
+        return existing
+    raise SkipUpdate(f"{reason}; no archived Termius ZIP matches the appcast digest")
 
 
 def unique_match(text: str, pattern: str, error: str) -> re.Match[str]:
@@ -267,12 +329,11 @@ def update_package(version: str, hash_value: str) -> None:
         print(f"termius is already at {version}")
         return
 
-    timestamp = save_snapshot()
-    archived_hash = archive_hash(timestamp)
-    if archived_hash != hash_value:
-        raise RuntimeError(
-            f"Archived Termius hash mismatch: expected {hash_value}, got {archived_hash}"
-        )
+    try:
+        timestamp = resolve_timestamp(hash_value)
+    except SkipUpdate as error:
+        print(f"::warning::termius: {error}", file=sys.stderr)
+        return
 
     text = replace_once(
         text,
