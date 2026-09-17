@@ -28,7 +28,6 @@ const PRIVILEGED_WORKFLOWS = new Set([
 	".github/workflows/check.yml",
 	".github/workflows/eval.yml",
 	".github/workflows/lint.yml",
-	".github/workflows/lix.yml",
 	".github/workflows/merge-pr.yml",
 	".github/workflows/pull-request-target.yml",
 	".github/workflows/refresh-updates.yml",

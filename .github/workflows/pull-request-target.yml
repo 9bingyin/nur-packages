@@ -88,18 +88,6 @@ jobs:
       systems: ${{ needs.prepare.outputs.systems }}
       target-sha: ${{ needs.prepare.outputs.target-sha }}
 
-  lix:
-    name: Lix
-    needs: prepare
-    permissions:
-      contents: read
-    uses: ./.github/workflows/lix.yml
-    with:
-      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
-      merged-sha: ${{ needs.prepare.outputs.merged-sha }}
-      systems: ${{ needs.prepare.outputs.systems }}
-      target-sha: ${{ needs.prepare.outputs.target-sha }}
-
   build:
     name: Build
     needs: prepare
@@ -118,7 +106,6 @@ jobs:
       - check
       - lint
       - eval
-      - lix
       - build
     permissions:
       contents: read
@@ -136,7 +123,6 @@ jobs:
       - check
       - lint
       - eval
-      - lix
       - build
       - review
     runs-on: ubuntu-latest

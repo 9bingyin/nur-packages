@@ -14,7 +14,6 @@ import {
 	parsePackageSet,
 } from "./eval-packages.ts";
 import { parseSystems } from "./lib.ts";
-import { packageSetsMatch } from "./lix.ts";
 import { pullRequestMatchesMerge } from "./merge.ts";
 import {
 	dependabotDiffAllowed,
@@ -293,21 +292,6 @@ test("eval comparison reports added, removed and changed packages", () => {
 		["changed"],
 	);
 	assert.equal(markdownSummary(result).includes("### Changed packages"), true);
-});
-
-test("Lix evaluation must match all Nix output paths", () => {
-	const result = {
-		package: { path: "/nix/store/package", version: "1" },
-	};
-	assert.equal(packageSetsMatch(result, result, "x86_64-linux"), true);
-	assert.equal(
-		packageSetsMatch(
-			result,
-			{ package: { path: "/nix/store/other", version: "1" } },
-			"x86_64-linux",
-		),
-		false,
-	);
 });
 
 test("eval report combines systems for review", () => {

@@ -46,11 +46,6 @@
             legacyPackages = nur;
             packages = nurPackages;
 
-            apps.lix = {
-              type = "app";
-              program = lib.getExe pkgs.lix;
-            };
-
             checks = {
               package-metadata = import ./checks/package-metadata.nix {
                 inherit pkgs;

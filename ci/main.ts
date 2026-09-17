@@ -2,8 +2,7 @@ import process from "node:process";
 import { buildCache } from "./cache.ts";
 import { discoverUpdates } from "./discovery.ts";
 import { evalCompare } from "./eval-compare.ts";
-import { evalPackages, evalSnapshot } from "./eval-packages.ts";
-import { checkLix } from "./lix.ts";
+import { evalPackages } from "./eval-packages.ts";
 import { mergePullRequest } from "./merge.ts";
 import { mergePolicy } from "./merge-policy.ts";
 import { preparePullRequest } from "./prepare-pr.ts";
@@ -26,10 +25,8 @@ function usage(): string {
 		"  discovery",
 		"  eval-compare",
 		"  eval-packages",
-		"  eval-snapshot",
 		"  inspect-update",
 		"  inspect-update-batch",
-		"  lix",
 		"  merge",
 		"  merge-policy",
 		"  prepare-pr",
@@ -62,17 +59,11 @@ async function main(args: readonly string[]): Promise<void> {
 		case "eval-packages":
 			await evalPackages(commandArgs);
 			return;
-		case "eval-snapshot":
-			await evalSnapshot(commandArgs);
-			return;
 		case "inspect-update":
 			inspectUpdate();
 			return;
 		case "inspect-update-batch":
 			inspectUpdateBatch();
-			return;
-		case "lix":
-			await checkLix(commandArgs);
 			return;
 		case "merge":
 			await mergePullRequest();
