@@ -52,16 +52,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Nix
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+        uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            access-tokens = github.com=${{ github.token }}
+          nix_conf: |
             extra-substituters = https://cache.bingyin.org
             extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
             sandbox = true
             allow-import-from-derivation = false
-            accept-flake-config = false
+      - name: Reject flake-supplied Nix config
+        run: echo 'accept-flake-config = false' >> "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
       - name: Install cache tools
         run: |
           nix_fast_build=$(nix build \
