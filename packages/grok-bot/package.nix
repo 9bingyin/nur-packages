@@ -8,11 +8,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "grok-bot";
-  version = "0.55.0";
+  version = "0.56.1";
 
   src = fetchurl {
     url = "https://downloads.cursor.com/grokbot/stable/darwin-arm64/${finalAttrs.version}/Grok_Bot_${finalAttrs.version}.zip";
-    hash = "sha256-Zu7xFsjjIyIs2BZFQK2jmXG9W/WcxZIjJ1BpryTVxiM=";
+    hash = "sha256-bNG4Te+8YLQABvG98AHy/5rjxfSlT2UR0zMQpl8lAqM=";
   };
 
   nativeBuildInputs = [
