@@ -71,6 +71,7 @@
                 includes = [
                   "ci/*.json"
                   "ci/*.ts"
+                  "packages/*/update.ts"
                 ];
               };
               programs.nixfmt.enable = true;
