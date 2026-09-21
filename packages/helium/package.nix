@@ -22,7 +22,9 @@ stdenvNoCC.mkDerivation {
     makeWrapper
   ];
 
-  dontUnpack = true;
+  sourceRoot = "Helium";
+  unpackCmd = "7zz x -snld -sns- $curSrc";
+
   dontConfigure = true;
   dontBuild = true;
   dontFixup = true;
@@ -31,12 +33,8 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    unpacked="$TMPDIR/Helium"
-    mkdir "$unpacked"
-    7zz x -snld -sns- -o"$unpacked" "$src"
-
     mkdir -p "$out/Applications" "$out/bin"
-    cp -R "$unpacked/Helium.app" "$out/Applications/"
+    cp -R Helium.app "$out/Applications/"
 
     makeWrapper \
       "$out/Applications/Helium.app/Contents/MacOS/Helium" \
