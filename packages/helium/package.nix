@@ -7,14 +7,14 @@
 }:
 let
   pname = "helium";
-  version = "0.17.2.2";
+  version = "0.18.1.1";
 in
 stdenvNoCC.mkDerivation {
   inherit pname version;
 
   src = fetchurl {
     url = "https://github.com/imputnet/helium-macos/releases/download/${version}/helium_${version}_arm64-macos.dmg";
-    hash = "sha256-CYY5HNzCql7wLB8kjE1iTRomoO6khmBsO56zNhehCVg=";
+    hash = "sha256-QY5zOYBxYcvaxC26cFIGeZcFdtUPWqTzCj8IYv60odk=";
   };
 
   nativeBuildInputs = [
