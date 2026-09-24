@@ -38,8 +38,8 @@ let
     src = fetchFromGitHub {
       owner = "xishang0128";
       repo = "sparkle-service";
-      rev = "613de72e571c3aacdb624a7c79c24a48869b9832";
-      hash = "sha256-c+ir41A6BC0w0f5gjVF39ToFg6cS+fpUOA9H62U7GRw=";
+      rev = "8930ff488455c46e3ecfa079ae50ba7f367a60f0";
+      hash = "sha256-FIE0tB7LoTBLgXgID3sS034Gd/Asc76T1oNqOLGfH90=";
     };
 
     vendorHash = "sha256-WwYJE71+uJLlOlqG9W8E6UC+JoIiaasXGB3sVC7DH5Q=";
