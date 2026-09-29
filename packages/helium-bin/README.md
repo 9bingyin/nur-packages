@@ -1,8 +1,8 @@
 # Helium
 
-隐私向 Chromium 浏览器。仅 `aarch64-darwin`。
+隐私向 Chromium 浏览器。仅 `aarch64-darwin`。包名 `helium-bin`。
 
-Home Manager 模块：`homeModules.helium`
+Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 偏好，并跳过首次 `helium://setup`。
 
 ```nix
 { inputs, ... }:
@@ -22,7 +22,7 @@ nix-darwin 里把模块放进 Home Manager 的 `sharedModules`。
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `package` | 本仓库 Helium 包 | 使用的 Helium 包 |
+| `package` | 本仓库 `helium-bin` | 使用的 Helium 包 |
 | `commandLineArgs` | `[]` | 通过 `helium` 命令启动时追加的参数 |
 | `profileDirectory` | `"Default"` | 要写 Services 偏好的 Chromium profile |
 | `autoUpdate` | `false` | 是否允许 Helium 自己更新。Nix 管理版本时保持关闭 |
@@ -30,6 +30,7 @@ nix-darwin 里把模块放进 Home Manager 的 `sharedModules`。
 | `services.bangs` | `true` | 是否下载 `!bangs` 列表 |
 | `services.extensionProxy` | `true` | 是否通过 Helium Services 代理扩展下载 |
 | `services.spellcheck` | `true` | 是否通过 Helium Services 下载拼写词典 |
+| `services.ublockAssets` | `true` | 是否通过 Helium Services 下载 uBlock Origin 过滤列表 |
 | `services.origin` | `null` | 覆盖 Helium Services 地址 |
 | `extensions` | `[]` | 外部 Chromium 扩展 |
 | `dictionaries` | `[]` | Chromium 词典包 |

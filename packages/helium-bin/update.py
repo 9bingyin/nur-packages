@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update Helium (aarch64-darwin) from the official GitHub release."""
+"""Update helium-bin (aarch64-darwin) from the official GitHub release."""
 
 from __future__ import annotations
 
@@ -78,10 +78,10 @@ def current_version(package_text: str) -> str:
 
 
 def update_package(version: str, url: str) -> None:
-    package_path = ROOT / "packages/helium/package.nix"
+    package_path = ROOT / "packages/helium-bin/package.nix"
     text = package_path.read_text()
     if current_version(text) == version:
-        print(f"helium is already at {version}")
+        print(f"helium-bin is already at {version}")
         return
 
     text = replace_once(

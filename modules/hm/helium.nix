@@ -17,13 +17,18 @@ let
   heliumExtensionUpdateUrl = "${heliumServicesOrigin}/ext";
   preferences = "${config.home.homeDirectory}/${configDirectory}/${cfg.profileDirectory}/Preferences";
   heliumPreferences = {
-    helium.services = {
-      enabled = cfg.services.enable;
-      bangs = cfg.services.bangs;
-      ext_proxy = cfg.services.extensionProxy;
-      spellcheck_files = cfg.services.spellcheck;
-      origin_override = if cfg.services.origin == null then "" else cfg.services.origin;
-      browser_updates = cfg.autoUpdate;
+    helium = {
+      completed_onboarding = true;
+      services = {
+        enabled = cfg.services.enable;
+        user_consented = cfg.services.enable;
+        bangs = cfg.services.bangs;
+        ext_proxy = cfg.services.extensionProxy;
+        spellcheck_files = cfg.services.spellcheck;
+        ublock_assets = cfg.services.ublockAssets;
+        origin_override = if cfg.services.origin == null then "" else cfg.services.origin;
+        browser_updates = cfg.autoUpdate;
+      };
     };
   };
   extensionType = types.submodule {
@@ -86,8 +91,8 @@ in
 
     package = mkOption {
       type = types.package;
-      default = pkgs.callPackage ../../packages/helium/package.nix { };
-      defaultText = literalExpression "pkgs.callPackage ../../packages/helium/package.nix { }";
+      default = pkgs.callPackage ../../packages/helium-bin/package.nix { };
+      defaultText = literalExpression "pkgs.callPackage ../../packages/helium-bin/package.nix { }";
       description = "The Helium package to install.";
     };
 
@@ -142,6 +147,12 @@ in
         type = types.bool;
         default = true;
         description = "Whether Helium may download spellcheck dictionaries through its services.";
+      };
+
+      ublockAssets = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether Helium may download uBlock Origin filter lists through its services.";
       };
 
       origin = mkOption {
