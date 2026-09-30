@@ -22,13 +22,13 @@
 }:
 let
   pname = "sparkle";
-  version = "1.26.8";
+  version = "1.26.9";
 
   src = fetchFromGitHub {
     owner = "xishang0128";
     repo = "sparkle";
     tag = version;
-    hash = "sha256-hAUc8T+xHRDwP0mj8wyd0+pNR5B5QEj4PXZVookxJeE=";
+    hash = "sha256-NhRe7PHdOiw4W5JH+T2dJiACQXknwGUv00Wq7zBERlU=";
   };
 
   sparkle-service = buildGoModule {
@@ -55,7 +55,7 @@ let
       pnpm
       ;
     fetcherVersion = 4;
-    hash = "sha256-VTeLrZz6nVfVmVJHMwkGTfVYl7Qs2ph3uHtOE8qoq/Q=";
+    hash = "sha256-MrVdpeNhx9NzyTK4srREy8miku/0OHJjr3jeACuXLE0=";
   };
 in
 stdenvNoCC.mkDerivation {
