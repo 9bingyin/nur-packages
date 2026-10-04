@@ -14,7 +14,7 @@ stdenvNoCC.mkDerivation {
   inherit version;
 
   src = fetchurl {
-    url = "https://web.archive.org/web/${waybackTimestamp}id_/https://autoupdate.termius.com/mac-arm64/Termius.zip";
+    url = "https://web.archive.org/web/${waybackTimestamp}if_/https://autoupdate.termius.com/mac-arm64/Termius.zip";
     hash = "sha512-O4ztseWEzYqsO0XGtTr6yb2rVWB1fjAfrEi0Lsj7LTpBlghdQEMa7MKmnAVSyyu07wVBHAnKBuoS4ca5qCZrow==";
   };
 
