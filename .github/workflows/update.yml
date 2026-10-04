@@ -100,7 +100,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ runner.temp }}/update-batch
           retention-days: 3
-          if-no-files-found: warn
+          if-no-files-found: error
 
   publish:
     needs:

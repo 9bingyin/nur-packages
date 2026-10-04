@@ -593,6 +593,10 @@ test("discovery builds package and flake input groups", () => {
 		current_version: "1.0",
 		name: "forge",
 	});
+	assert.throws(
+		() => parseFlakeInputs({ nodes: { root: { inputs: {} } } }, ["missing"]),
+		/Flake input missing was not found/,
+	);
 	const batches = buildBatchMatrix(matrix);
 	assert.deepEqual(
 		batches.include.map(({ group, targets }) => [group, targets.length]),
@@ -601,10 +605,10 @@ test("discovery builds package and flake input groups", () => {
 	assert.equal(parseUpdateBatch(batches.include[0]?.targets).length, 2);
 });
 
-test("update batch fails only when every target fails", () => {
-	assert.equal(updateBatchIsFatal(0, 2), false);
-	assert.equal(updateBatchIsFatal(1, 2), false);
-	assert.equal(updateBatchIsFatal(2, 2), true);
+test("update batch fails when any target fails", () => {
+	assert.equal(updateBatchIsFatal(0), false);
+	assert.equal(updateBatchIsFatal(1), true);
+	assert.equal(updateBatchIsFatal(2), true);
 });
 
 test("update batch summary reports the failed targets", () => {

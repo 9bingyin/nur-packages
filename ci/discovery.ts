@@ -150,7 +150,7 @@ async function discoverPackages(
 		if (disabled.has(name)) {
 			console.log(`::warning::Package ${name} has automatic updates disabled`);
 		} else if (!discovered.has(name)) {
-			console.log(`::warning::Package ${name} was not found or has no version`);
+			throw new Error(`Package ${name} was not found or has no version`);
 		}
 	}
 	return [...discovered.values()].sort((left, right) =>
@@ -192,6 +192,9 @@ export function parseFlakeInputs(
 
 	const names = inputFilter ?? Object.keys(inputs).sort();
 	return names.map((name) => {
+		if (!Object.hasOwn(inputs, name)) {
+			throw new Error(`Flake input ${name} was not found`);
+		}
 		const reference = inputs[name];
 		const nodeName = typeof reference === "string" ? reference : name;
 		return {

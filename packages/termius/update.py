@@ -473,11 +473,7 @@ def update_package(version: str, hash_value: str) -> None:
         print(f"termius is already at {version}")
         return
 
-    try:
-        timestamp = resolve_timestamp(hash_value)
-    except SkipUpdate as error:
-        print(f"::warning::termius: {redact(str(error))}", file=sys.stderr)
-        return
+    timestamp = resolve_timestamp(hash_value)
 
     text = replace_once(
         text,
@@ -515,5 +511,5 @@ if __name__ == "__main__":
         UnicodeError,
         urllib.error.URLError,
     ) as error:
-        print(f"error: {redact(str(error))}", file=sys.stderr)
+        print(f"::error::termius: {redact(str(error))}", file=sys.stderr)
         raise SystemExit(1) from error

@@ -200,11 +200,8 @@ export function updateBatchSummary(
 	].join("\n");
 }
 
-export function updateBatchIsFatal(
-	failureCount: number,
-	targetCount: number,
-): boolean {
-	return failureCount > 0 && failureCount === targetCount;
+export function updateBatchIsFatal(failureCount: number): boolean {
+	return failureCount > 0;
 }
 
 function firstLine(text: string): string {
@@ -234,12 +231,12 @@ export async function prepareUpdateBatch(): Promise<void> {
 			prettyJson({ failures, total: targets.length }),
 		);
 		for (const failure of failures) {
-			console.warn(`::warning::${firstLine(failure)}`);
+			console.error(`::error::${firstLine(failure)}`);
 		}
 		appendStepSummary(updateBatchSummary(failures, targets.length));
-		if (updateBatchIsFatal(failures.length, targets.length)) {
+		if (updateBatchIsFatal(failures.length)) {
 			throw new Error(
-				`Update batch failed for every target:\n${failures.join("\n")}`,
+				`Update batch failed for ${failures.length}/${targets.length} targets:\n${failures.join("\n")}`,
 			);
 		}
 	} finally {

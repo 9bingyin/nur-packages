@@ -404,7 +404,7 @@ export async function refreshUpdateQueue(): Promise<void> {
 		} catch (error) {
 			const message = `Failed to reconcile PR #${candidate.number}: ${String(error)}`;
 			failures.push(message);
-			console.warn(`::warning::${message}`);
+			console.error(`::error::${message}`);
 		}
 	}
 	if (failures.length > 0) {
