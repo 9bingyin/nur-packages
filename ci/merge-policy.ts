@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import process from "node:process";
 import {
@@ -14,14 +15,14 @@ import {
 	run,
 	writeOutput,
 } from "./lib.ts";
-import { parseRawDiff } from "./update.ts";
+import { type PrRevision, readPrRevision, trustedPrRun } from "./pr-runs.ts";
+import { parseRawDiff, validateChangedFiles } from "./update.ts";
 import {
 	parseUpdateProvenance,
 	type UpdateProvenance,
 } from "./update-provenance.ts";
 
 const DEPENDABOT_USER_ID = 49_699_333;
-const EXPECTED_WORKFLOW_PATH = ".github/workflows/pull-request-target.yml";
 const PRIVILEGED_WORKFLOWS = new Set([
 	".github/workflows/build-cache.yml",
 	".github/workflows/build.yml",
@@ -39,17 +40,19 @@ const ACTION_REFERENCE_PATTERN =
 
 type MergeMode = "auto" | "manual" | "stale";
 
-type PullRequestReference = Readonly<{
-	baseRef: string;
-	baseRepositoryId: number;
-	baseSha: string;
-	headRef: string;
-	headRepositoryId: number;
-	headSha: string;
-	number: number;
-}>;
+type PullRequestReference = Pick<
+	PrRevision,
+	| "baseRef"
+	| "baseSha"
+	| "headRef"
+	| "headRepositoryId"
+	| "headSha"
+	| "number"
+	| "mergeable"
+>;
 
 type PullRequestInfo = Readonly<{
+	baseRef: string;
 	baseSha: string;
 	draft: boolean;
 	headRepositoryId: number;
@@ -68,44 +71,6 @@ function positiveInteger(value: unknown, name: string): number {
 	return value;
 }
 
-function parseReference(value: unknown): PullRequestReference {
-	const pullRequest = requireRecord(value, "workflow run pull request");
-	const base = requireRecord(
-		pullRequest.base,
-		"workflow run pull request.base",
-	);
-	const head = requireRecord(
-		pullRequest.head,
-		"workflow run pull request.head",
-	);
-	const baseRepository = requireRecord(
-		base.repo,
-		"workflow run pull request.base.repo",
-	);
-	const headRepository = requireRecord(
-		head.repo,
-		"workflow run pull request.head.repo",
-	);
-	return {
-		baseRef: requireString(base.ref, "workflow run pull request.base.ref"),
-		baseRepositoryId: positiveInteger(
-			baseRepository.id,
-			"workflow run pull request.base.repo.id",
-		),
-		baseSha: requireString(base.sha, "workflow run pull request.base.sha"),
-		headRef: requireString(head.ref, "workflow run pull request.head.ref"),
-		headRepositoryId: positiveInteger(
-			headRepository.id,
-			"workflow run pull request.head.repo.id",
-		),
-		headSha: requireString(head.sha, "workflow run pull request.head.sha"),
-		number: positiveInteger(
-			pullRequest.number,
-			"workflow run pull request.number",
-		),
-	};
-}
-
 function parsePullRequest(value: unknown): PullRequestInfo {
 	const pullRequest = requireRecord(value, "pull request");
 	const base = requireRecord(pullRequest.base, "pull request.base");
@@ -116,6 +81,7 @@ function parsePullRequest(value: unknown): PullRequestInfo {
 		throw new Error("pull request.draft must be boolean");
 	}
 	return {
+		baseRef: requireString(base.ref, "pull request.base.ref"),
 		baseSha: requireString(base.sha, "pull request.base.sha"),
 		draft: pullRequest.draft,
 		headRepositoryId: positiveInteger(
@@ -149,22 +115,27 @@ async function triggeringPullRequest(
 		await githubRequest(`/repos/${githubRepository()}/actions/runs/${runId}`),
 		"workflow run",
 	);
-	const repository = requireRecord(run.repository, "workflow run.repository");
+	const repositoryId = positiveInteger(
+		Number(process.env.GITHUB_REPOSITORY_ID),
+		"GITHUB_REPOSITORY_ID",
+	);
 	if (
-		run.event !== "pull_request_target" ||
-		run.conclusion !== "success" ||
-		run.path !== EXPECTED_WORKFLOW_PATH ||
-		repository.id !==
-			positiveInteger(
-				Number(process.env.GITHUB_REPOSITORY_ID),
-				"GITHUB_REPOSITORY_ID",
-			) ||
-		!Array.isArray(run.pull_requests) ||
-		run.pull_requests.length !== 1
+		!trustedPrRun(run, repositoryId) ||
+		run.status !== "completed" ||
+		run.conclusion !== "success"
 	) {
 		throw new Error("The triggering PR workflow does not match merge policy");
 	}
-	return parseReference(run.pull_requests[0]);
+	const revision = await readPrRevision(
+		runId,
+		positiveInteger(run.run_attempt, "workflow run.run_attempt"),
+		repositoryId,
+	);
+	if (revision === null)
+		throw new Error(
+			"This PR requires a recheck with a checked revision artifact",
+		);
+	return revision;
 }
 
 async function provenanceForHead(
@@ -259,6 +230,26 @@ export function dependabotDiffAllowed(
 	);
 }
 
+export function provenanceDiffAllowed(
+	provenance: UpdateProvenance,
+	headRef: string,
+	patch: string,
+	files: ReturnType<typeof parseRawDiff>,
+): boolean {
+	if (
+		headRef !== `update/${provenance.targetName}` ||
+		createHash("sha256").update(patch).digest("hex") !== provenance.patchSha256
+	) {
+		return false;
+	}
+	try {
+		validateChangedFiles(provenance.targetType, provenance.targetName, files);
+		return ownBotDiffAllowed(headRef, files);
+	} catch {
+		return false;
+	}
+}
+
 export function selectMergeMode(
 	pullRequest: PullRequestInfo,
 	reference: PullRequestReference,
@@ -270,6 +261,7 @@ export function selectMergeMode(
 ): MergeMode {
 	if (
 		pullRequest.number !== reference.number ||
+		pullRequest.baseRef !== reference.baseRef ||
 		pullRequest.baseSha !== reference.baseSha ||
 		pullRequest.state !== "open" ||
 		pullRequest.draft ||
@@ -277,6 +269,9 @@ export function selectMergeMode(
 		pullRequest.headRepositoryId !== reference.headRepositoryId
 	) {
 		return "stale";
+	}
+	if (!reference.mergeable) {
+		return "manual";
 	}
 	if (
 		pullRequest.userId === botUserId &&
@@ -304,7 +299,13 @@ async function repositoryDiff(
 	repository: string,
 	baseSha: string,
 	headSha: string,
-): Promise<Readonly<{ diff: string; files: ReturnType<typeof parseRawDiff> }>> {
+): Promise<
+	Readonly<{
+		diff: string;
+		patch: string;
+		files: ReturnType<typeof parseRawDiff>;
+	}>
+> {
 	rmSync(repository, { force: true, recursive: true });
 	mkdirSync(repository, { recursive: true });
 	const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
@@ -357,7 +358,25 @@ async function repositoryDiff(
 		],
 		{ capture: true },
 	);
-	return { diff: diff.stdout, files: parseRawDiff(raw.stdout) };
+	const patch = await run(
+		[
+			"git",
+			"-C",
+			repository,
+			"diff",
+			"--binary",
+			"--full-index",
+			"--no-renames",
+			baseSha,
+			headSha,
+		],
+		{ capture: true },
+	);
+	return {
+		diff: diff.stdout,
+		patch: patch.stdout,
+		files: parseRawDiff(raw.stdout),
+	};
 }
 
 export async function mergePolicy(): Promise<void> {
@@ -388,16 +407,16 @@ export async function mergePolicy(): Promise<void> {
 		pullRequest.userType === "Bot";
 	const needsDiff =
 		reference.headRepositoryId === repositoryId && (ownBot || dependabot);
-	const { diff, files } = needsDiff
-		? await repositoryDiff(
-				requiredEnvironment("CANDIDATE_REPOSITORY"),
-				reference.baseSha,
-				reference.headSha,
-			)
-		: { diff: "", files: [] };
 	const provenance = ownBot
 		? await provenanceForHead(reference.number, reference.headSha, botUserId)
 		: null;
+	const { diff, patch, files } = needsDiff
+		? await repositoryDiff(
+				requiredEnvironment("CANDIDATE_REPOSITORY"),
+				provenance?.baseSha ?? reference.baseSha,
+				reference.headSha,
+			)
+		: { diff: "", patch: "", files: [] };
 	const mode = selectMergeMode(
 		{
 			...pullRequest,
@@ -406,7 +425,8 @@ export async function mergePolicy(): Promise<void> {
 		reference,
 		repositoryId,
 		botUserId,
-		provenance?.baseSha === reference.baseSha,
+		provenance !== null &&
+			provenanceDiffAllowed(provenance, reference.headRef, patch, files),
 		files,
 		diff,
 	);

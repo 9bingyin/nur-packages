@@ -9,8 +9,8 @@ on:
 
 permissions: {}
 
-# Serialize the final base-SHA check and synchronous merge. At most one fresh
-# revision can merge before Refresh Updates rebases the remaining bot PRs.
+# Serialize the final base-SHA check and synchronous merge. Stale package PRs
+# are rechecked against the new base without rewriting their branches.
 concurrency:
   group: merge-pr-main
   cancel-in-progress: false
@@ -19,7 +19,8 @@ jobs:
   policy:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request_target'
+      (github.event.workflow_run.event == 'pull_request_target' ||
+       github.event.workflow_run.event == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -55,7 +56,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: latest
       - name: Select merge policy
         id: policy
         env:
@@ -90,7 +91,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: latest
       - name: Merge pull request
         env:
           BASE_REF: ${{ needs.policy.outputs.base-ref }}

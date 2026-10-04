@@ -5,11 +5,14 @@ import type { SystemConfig } from "./lib.ts";
 import {
 	parseJson,
 	parseSystems,
+	prettyJson,
 	requireRecord,
 	requireString,
 	sleep,
 	writeOutput,
+	writeTextFile,
 } from "./lib.ts";
+import { parsePrRevision } from "./pr-runs.ts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const RETRY_INTERVALS_SECONDS = [5, 10, 20, 40, 80] as const;
@@ -79,21 +82,51 @@ function parsePullRequest(value: unknown): PullRequest {
 	};
 }
 
-async function eventPullRequestNumber(): Promise<number> {
-	const eventPath = requireString(
-		process.env.GITHUB_EVENT_PATH,
-		"GITHUB_EVENT_PATH",
-	);
-	const event = requireRecord(
-		parseJson(readFileSync(eventPath, "utf8"), "GitHub event"),
-		"event",
-	);
+export function parsePrEvent(
+	eventName: string,
+	value: unknown,
+):
+	| Readonly<{ kind: "pull-request"; number: number }>
+	| Readonly<{
+			kind: "dispatch";
+			number: number;
+			headSha: string;
+			baseSha: string;
+	  }> {
+	const event = requireRecord(value, "GitHub event");
+	if (eventName === "workflow_dispatch") {
+		const inputs = requireRecord(event.inputs, "event.inputs");
+		const number = Number(inputs["pull-request-number"]);
+		if (!Number.isInteger(number) || number <= 0) {
+			throw new Error("Dispatch requires a pull request number");
+		}
+		return {
+			kind: "dispatch",
+			number,
+			headSha: validateSha("dispatch head SHA", inputs["head-sha"]),
+			baseSha: validateSha("dispatch base SHA", inputs["base-sha"]),
+		};
+	}
+	if (eventName !== "pull_request_target") {
+		throw new Error("prepare requires a PR or recheck event");
+	}
 	const pullRequest = requireRecord(event.pull_request, "event.pull_request");
 	const number = pullRequest.number;
 	if (!Number.isInteger(number) || typeof number !== "number" || number <= 0) {
 		throw new Error("prepare requires a pull_request_target event");
 	}
-	return number;
+	return { kind: "pull-request", number };
+}
+
+function pullRequestEvent(): ReturnType<typeof parsePrEvent> {
+	const eventPath = requireString(
+		process.env.GITHUB_EVENT_PATH,
+		"GITHUB_EVENT_PATH",
+	);
+	return parsePrEvent(
+		requireString(process.env.GITHUB_EVENT_NAME, "GITHUB_EVENT_NAME"),
+		parseJson(readFileSync(eventPath, "utf8"), "GitHub event"),
+	);
 }
 
 async function pullRequestInfo(number: number): Promise<PullRequest> {
@@ -211,8 +244,15 @@ async function changedFiles(number: number): Promise<readonly string[]> {
 }
 
 export async function preparePullRequest(): Promise<void> {
-	const pullRequest = await pullRequestInfo(await eventPullRequestNumber());
+	const event = pullRequestEvent();
+	const pullRequest = await pullRequestInfo(event.number);
 	const headSha = validateSha("headSha", pullRequest.head.sha);
+	if (
+		event.kind === "dispatch" &&
+		(event.headSha !== headSha || event.baseSha !== pullRequest.base.sha)
+	) {
+		throw new Error("The pull request changed before its recheck started");
+	}
 
 	let mergedRepository: string;
 	let mergedSha: string;
@@ -244,6 +284,24 @@ export async function preparePullRequest(): Promise<void> {
 	console.log(`merged SHA: ${mergedSha}`);
 	console.log(`target SHA: ${targetSha}`);
 	console.log(`systems: ${systems.join(", ")}`);
+
+	writeTextFile(
+		"pr-revision.json",
+		prettyJson(
+			parsePrRevision({
+				baseRef: pullRequest.base.ref,
+				baseSha: pullRequest.base.sha,
+				headRef: pullRequest.head.ref,
+				headRepositoryId: pullRequest.head.repoId,
+				headSha,
+				mergeable: pullRequest.mergeable,
+				number: pullRequest.number,
+				repositoryId: Number(process.env.GITHUB_REPOSITORY_ID),
+				runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+				runId: Number(process.env.GITHUB_RUN_ID),
+			}),
+		),
+	);
 
 	writeOutput("baseBranch", pullRequest.base.ref);
 	writeOutput("headBranch", pullRequest.head.ref);

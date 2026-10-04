@@ -6,6 +6,11 @@ on:
       - main
       - master
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - PR
+    types:
+      - completed
 
 permissions: {}
 
@@ -15,9 +20,14 @@ concurrency:
 
 jobs:
   refresh:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.event == 'pull_request_target' ||
+      github.event.workflow_run.event == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      actions: write
       contents: read
       pull-requests: read
     steps:
@@ -53,11 +63,12 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
-      - name: Refresh queue head
+          bun-version: latest
+      - name: Rebase nixpkgs and recheck stale package PRs
         env:
           AUTOMATION_BOT_USER_ID: ${{ steps.bot-user.outputs.id }}
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
           CANDIDATE_REPOSITORY: ${{ github.workspace }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_ACTIONS_TOKEN: ${{ github.token }}
         run: bun ci/main.ts refresh-update-queue

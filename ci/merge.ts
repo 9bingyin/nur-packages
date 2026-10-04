@@ -44,6 +44,7 @@ export function pullRequestMatchesMerge(
 		pullRequest.number === expected.number &&
 		currentBaseSha === expected.baseSha &&
 		base.sha === expected.baseSha &&
+		base.ref === expected.baseRef &&
 		pullRequest.state === "open" &&
 		pullRequest.draft === false &&
 		head.sha === expected.headSha
