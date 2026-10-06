@@ -34,6 +34,8 @@ jobs:
       pull-requests: read
     outputs:
       base-branch: ${{ steps.prepare.outputs.baseBranch }}
+      base-sha: ${{ steps.prepare.outputs.baseSha }}
+      source-artifact-id: ${{ steps.source.outputs.artifact-id }}
       files: ${{ steps.prepare.outputs.files }}
       head-branch: ${{ steps.prepare.outputs.headBranch }}
       head-repository: ${{ steps.prepare.outputs.headRepository }}
@@ -61,6 +63,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bun ci/main.ts prepare-pr
+      - name: Upload checked source
+        id: source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-source-${{ github.run_attempt }}
+          path: pr-source.bundle
+          compression-level: 0
+          if-no-files-found: error
       - name: Upload checked revision
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -75,7 +85,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/check.yml
     with:
-      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      source-artifact-id: ${{ needs.prepare.outputs.source-artifact-id }}
       merged-sha: ${{ needs.prepare.outputs.merged-sha }}
       target-sha: ${{ needs.prepare.outputs.target-sha }}
 
@@ -86,7 +96,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/lint.yml
     with:
-      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      source-artifact-id: ${{ needs.prepare.outputs.source-artifact-id }}
       merged-sha: ${{ needs.prepare.outputs.merged-sha }}
       target-sha: ${{ needs.prepare.outputs.target-sha }}
 
@@ -98,6 +108,8 @@ jobs:
     uses: ./.github/workflows/eval.yml
     with:
       base-branch: ${{ needs.prepare.outputs.base-branch }}
+      base-sha: ${{ needs.prepare.outputs.base-sha }}
+      source-artifact-id: ${{ needs.prepare.outputs.source-artifact-id }}
       head-branch: ${{ needs.prepare.outputs.head-branch }}
       head-repository: ${{ needs.prepare.outputs.head-repository }}
       head-repository-id: ${{ fromJSON(needs.prepare.outputs.head-repository-id) }}
@@ -117,7 +129,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       matrix: ${{ needs.prepare.outputs.matrix }}
-      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      source-artifact-id: ${{ needs.prepare.outputs.source-artifact-id }}
       merged-sha: ${{ needs.prepare.outputs.merged-sha }}
 
   review:
@@ -133,7 +145,7 @@ jobs:
     uses: ./.github/workflows/review.yml
     with:
       matrix: ${{ needs.prepare.outputs.matrix }}
-      merged-repository: ${{ needs.prepare.outputs.merged-repository }}
+      source-artifact-id: ${{ needs.prepare.outputs.source-artifact-id }}
       merged-sha: ${{ needs.prepare.outputs.merged-sha }}
       target-sha: ${{ needs.prepare.outputs.target-sha }}
 

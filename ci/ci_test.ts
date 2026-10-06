@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
 	chmodSync,
+	copyFileSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -12,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { nixFastBuildCommand } from "./cache.ts";
 import {
 	buildBatchMatrix,
@@ -46,7 +48,11 @@ import {
 	trustedPrRun,
 	trustedRevisionArtifact,
 } from "./pr-runs.ts";
-import { parsePrEvent, validateMergeParents } from "./prepare-pr.ts";
+import {
+	parsePrEvent,
+	preparePullRequest,
+	validateMergeParents,
+} from "./prepare-pr.ts";
 import { checksSucceeded } from "./publish-status.ts";
 import {
 	reviewBuildCommand,
@@ -108,6 +114,282 @@ test("parseSystems validates systems and runners", () => {
 test("prepare validates the test merge parents", () => {
 	assert.equal(validateMergeParents(["base", "head"], "base", "head"), "base");
 	assert.throws(() => validateMergeParents(["head", "base"], "base", "head"));
+});
+
+test("prepare rechecks the current base and distributes one pinned merge snapshot", async () => {
+	const directory = mkdtempSync(join(tmpdir(), "prepare-recheck-test-"));
+	const server = join(directory, "server");
+	const baseRepository = join(server, "owner/repository.git");
+	const headRepository = join(server, "contributor/fork.git");
+	const seed = join(directory, "seed");
+	const originalDirectory = process.cwd();
+	const originalFetch = globalThis.fetch;
+	const originalEnvironment = { ...process.env };
+	const environment = {
+		GH_TOKEN: "test-only",
+		GITHUB_REPOSITORY: "owner/repository",
+		GITHUB_REPOSITORY_ID: "1",
+		GITHUB_SERVER_URL: pathToFileURL(server).href,
+		GITHUB_RUN_ID: "10",
+		GITHUB_RUN_ATTEMPT: "1",
+		GITHUB_EVENT_NAME: "workflow_dispatch",
+		GITHUB_EVENT_PATH: join(directory, "event.json"),
+		GITHUB_OUTPUT: join(directory, "output"),
+	};
+	const git = async (...args: string[]) =>
+		(await run(["git", "-C", seed, ...args], { capture: true })).stdout.trim();
+	try {
+		await run(["git", "init", "--bare", baseRepository], { capture: true });
+		await run(["git", "init", "--bare", headRepository], { capture: true });
+		await run(["git", "init", "--initial-branch=main", seed], {
+			capture: true,
+		});
+		await git("config", "user.name", "CI Test");
+		await git("config", "user.email", "ci@example.invalid");
+		writeFileSync(join(seed, "base.txt"), "original base\n");
+		await git("add", ".");
+		await git("commit", "-m", "base");
+		const oldBase = await git("rev-parse", "HEAD");
+		await git("checkout", "-b", "update/foo");
+		writeFileSync(join(seed, "head.txt"), "pull request\n");
+		await git("add", ".");
+		await git("commit", "-m", "head");
+		let headSha = await git("rev-parse", "HEAD");
+		await git("push", headRepository, "HEAD:refs/heads/update/foo");
+		await git("checkout", "main");
+		writeFileSync(join(seed, "base.txt"), "advanced base\n");
+		await git("add", ".");
+		await git("commit", "-m", "advance main");
+		const baseSha = await git("rev-parse", "HEAD");
+		await git("push", baseRepository, "HEAD:refs/heads/main");
+		let currentBaseSha = baseSha;
+		const event = (expectedBase = baseSha, expectedHead = headSha) => {
+			writeFileSync(
+				environment.GITHUB_EVENT_PATH,
+				JSON.stringify({
+					inputs: {
+						"pull-request-number": "42",
+						"base-sha": expectedBase,
+						"head-sha": expectedHead,
+					},
+				}),
+			);
+		};
+		Object.assign(process.env, environment);
+		process.chdir(directory);
+		globalThis.fetch = Object.assign(
+			async (input: Parameters<typeof fetch>[0]) => {
+				const url = new URL(String(input));
+				if (url.pathname.endsWith("/pulls/42")) {
+					return Response.json({
+						number: 42,
+						state: "open",
+						mergeable: true,
+						merge_commit_sha: "9".repeat(40),
+						base: {
+							label: "owner:main",
+							ref: "main",
+							sha: oldBase,
+							repo: { id: 1, full_name: "owner/repository" },
+						},
+						head: {
+							label: "contributor:update/foo",
+							ref: "update/foo",
+							sha: headSha,
+							repo: { id: 2, full_name: "contributor/fork" },
+						},
+					});
+				}
+				if (url.pathname.endsWith("/branches/main"))
+					return Response.json({ commit: { sha: currentBaseSha } });
+				if (url.pathname.endsWith("/contents/ci/systems.json")) {
+					assert.ok(
+						[baseSha, oldBase].includes(String(url.searchParams.get("ref"))),
+					);
+					return Response.json({
+						encoding: "base64",
+						content: Buffer.from(
+							JSON.stringify([
+								{ system: "x86_64-linux", runner: "ubuntu-latest" },
+							]),
+						).toString("base64"),
+					});
+				}
+				if (url.pathname.endsWith("/pulls/42/files"))
+					return Response.json([{ filename: "head.txt" }]);
+				throw new Error(`Unexpected request: ${url}`);
+			},
+			{ preconnect: originalFetch.preconnect },
+		);
+		const outputs = () =>
+			Object.fromEntries(
+				readFileSync(environment.GITHUB_OUTPUT, "utf8")
+					.trim()
+					.split("\n")
+					.map((line) => line.split("=")),
+			);
+		event();
+		await preparePullRequest();
+		const revision = parsePrRevision(
+			JSON.parse(readFileSync("pr-revision.json", "utf8")),
+		);
+		assert.equal(revision.baseSha, baseSha);
+		assert.equal(revision.headSha, headSha);
+		assert.equal(revision.mergeable, true);
+		assert.equal(outputs().targetSha, baseSha);
+		const workspace = join(directory, "consumer");
+		mkdirSync(join(workspace, "source"), { recursive: true });
+		copyFileSync(
+			"pr-source.bundle",
+			join(workspace, "source/pr-source.bundle"),
+		);
+		const workflow = requireRecord(
+			Bun.YAML.parse(
+				readFileSync(
+					new URL("../.github/workflows/check.yml", import.meta.url),
+					"utf8",
+				),
+			),
+			"Check workflow",
+		);
+		const jobs = requireRecord(workflow.jobs, "Check jobs");
+		const ci = requireRecord(jobs.ci, "Check CI job");
+		assert.ok(Array.isArray(ci.steps));
+		const checkout = ci.steps
+			.map((step) => requireRecord(step, "Check step"))
+			.find((step) => step.name === "Checkout checked source");
+		assert.ok(checkout);
+		const mergedSha = String(outputs().mergedSha);
+		await run(["bash", "-e", "-c", String(checkout.run)], {
+			cwd: workspace,
+			env: { MERGED_SHA: mergedSha },
+			capture: true,
+		});
+		const consumer = join(workspace, "untrusted");
+		assert.equal(
+			readFileSync(join(consumer, "base.txt"), "utf8"),
+			"advanced base\n",
+		);
+		assert.equal(
+			readFileSync(join(consumer, "head.txt"), "utf8"),
+			"pull request\n",
+		);
+		const parents = (
+			await run(
+				["git", "-C", consumer, "show", "-s", "--format=%P", mergedSha],
+				{ capture: true },
+			)
+		).stdout
+			.trim()
+			.split(" ");
+		assert.equal(validateMergeParents(parents, baseSha, headSha), baseSha);
+		assert.ok(!(await git("status", "--porcelain")).trim());
+		assert.ok(
+			(
+				await git("ls-remote", headRepository, "refs/heads/update/foo")
+			).startsWith(headSha),
+		);
+		await preparePullRequest();
+		assert.equal(outputs().mergedSha, mergedSha);
+		event(baseSha, "8".repeat(40));
+		await assert.rejects(preparePullRequest(), /changed before its recheck/);
+		event();
+		currentBaseSha = "7".repeat(40);
+		await assert.rejects(preparePullRequest(), /changed before its recheck/);
+		currentBaseSha = baseSha;
+		await git("checkout", "update/foo");
+		writeFileSync(join(seed, "base.txt"), "conflicting head\n");
+		await git("add", ".");
+		await git("commit", "-m", "conflict");
+		headSha = await git("rev-parse", "HEAD");
+		await git("push", headRepository, "HEAD:refs/heads/update/foo");
+		event();
+		await preparePullRequest();
+		const conflicting = parsePrRevision(
+			JSON.parse(readFileSync("pr-revision.json", "utf8")),
+		);
+		assert.equal(conflicting.baseSha, baseSha);
+		assert.equal(conflicting.mergeable, false);
+		assert.equal(outputs().mergedSha, headSha);
+		assert.equal(outputs().targetSha, oldBase);
+		await run(
+			["git", "clone", "--no-checkout", "pr-source.bundle", "conflicting"],
+			{ capture: true },
+		);
+		await run(["git", "-C", "conflicting", "checkout", "--detach", headSha], {
+			capture: true,
+		});
+		assert.equal(
+			readFileSync("conflicting/base.txt", "utf8"),
+			"conflicting head\n",
+		);
+	} finally {
+		globalThis.fetch = originalFetch;
+		process.chdir(originalDirectory);
+		for (const name of Object.keys(environment)) {
+			const value = originalEnvironment[name];
+			if (value === undefined) delete process.env[name];
+			else process.env[name] = value;
+		}
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test("every PR check consumes the source artifact pinned by prepare", () => {
+	const workflow = (name: string) =>
+		requireRecord(
+			Bun.YAML.parse(
+				readFileSync(
+					new URL(`../.github/workflows/${name}.yml`, import.meta.url),
+					"utf8",
+				),
+			),
+			`${name} workflow`,
+		);
+	const jobs = requireRecord(workflow("pull-request-target").jobs, "PR jobs");
+	const prepare = requireRecord(jobs.prepare, "prepare job");
+	assert.equal(
+		requireRecord(prepare.outputs, "prepare outputs")["source-artifact-id"],
+		"${{ steps.source.outputs.artifact-id }}",
+	);
+	const commands = new Set<string>();
+	let consumers = 0;
+	for (const name of ["check", "lint", "eval", "build", "review"]) {
+		const caller = requireRecord(jobs[name], `${name} caller`);
+		assert.equal(
+			requireRecord(caller.with, `${name} inputs`)["source-artifact-id"],
+			"${{ needs.prepare.outputs.source-artifact-id }}",
+		);
+		for (const value of Object.values(
+			requireRecord(workflow(name).jobs, `${name} jobs`),
+		)) {
+			const job = requireRecord(value, `${name} job`);
+			assert.ok(Array.isArray(job.steps));
+			const steps = job.steps.map((step) =>
+				requireRecord(step, `${name} step`),
+			);
+			const download = steps.find(
+				(step) => step.name === "Download checked source",
+			);
+			if (!download) continue;
+			const options = requireRecord(download.with, "source download options");
+			assert.equal(options["artifact-ids"], "${{ inputs.source-artifact-id }}");
+			assert.equal(options.path, "source");
+			assert.equal(options["merge-multiple"], true);
+			const checkout = steps.find(
+				(step) => step.name === "Checkout checked source",
+			);
+			assert.ok(checkout);
+			assert.equal(
+				requireRecord(checkout.env, "source checkout environment").MERGED_SHA,
+				"${{ inputs.merged-sha }}",
+			);
+			commands.add(String(checkout.run));
+			consumers += 1;
+		}
+	}
+	assert.equal(consumers, 7);
+	assert.equal(commands.size, 1);
 });
 
 test("merge policy downgrades manually changed bot branches", () => {
@@ -505,6 +787,30 @@ test("nix-fast-build scans every uncached package", () => {
 	assert.equal(
 		command.some((argument) => argument.endsWith("#packages.x86_64-linux")),
 		true,
+	);
+});
+
+test("merge uses the actual branch tip instead of the cached PR base", () => {
+	const expected = {
+		baseRef: "main",
+		baseSha: "1".repeat(40),
+		headSha: "2".repeat(40),
+		number: 42,
+	};
+	const pullRequest = {
+		number: 42,
+		state: "open",
+		draft: false,
+		base: { ref: "main", sha: "3".repeat(40) },
+		head: { sha: expected.headSha },
+	};
+	assert.equal(
+		pullRequestMatchesMerge(pullRequest, expected, expected.baseSha),
+		true,
+	);
+	assert.equal(
+		pullRequestMatchesMerge(pullRequest, expected, "4".repeat(40)),
+		false,
 	);
 });
 

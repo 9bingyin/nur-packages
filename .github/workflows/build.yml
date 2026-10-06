@@ -6,7 +6,7 @@ on:
       matrix:
         required: true
         type: string
-      merged-repository:
+      source-artifact-id:
         required: true
         type: string
       merged-sha:
@@ -30,13 +30,18 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(inputs.matrix) }}
     steps:
-      - name: Checkout untrusted
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download checked source
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          persist-credentials: false
-          repository: ${{ inputs.merged-repository }}
-          ref: ${{ inputs.merged-sha }}
-          path: untrusted
+          artifact-ids: ${{ inputs.source-artifact-id }}
+          path: source
+          merge-multiple: true
+      - name: Checkout checked source
+        env:
+          MERGED_SHA: ${{ inputs.merged-sha }}
+        run: |
+          git clone --no-checkout source/pr-source.bundle untrusted
+          git -C untrusted checkout --detach "$MERGED_SHA"
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
         with:

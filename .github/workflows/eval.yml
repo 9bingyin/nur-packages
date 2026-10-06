@@ -6,6 +6,12 @@ on:
       base-branch:
         required: true
         type: string
+      base-sha:
+        required: true
+        type: string
+      source-artifact-id:
+        required: true
+        type: string
       head-branch:
         required: true
         type: string
@@ -50,13 +56,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout untrusted
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download checked source
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          persist-credentials: false
-          repository: ${{ inputs.merged-repository }}
-          ref: ${{ inputs.merged-sha }}
-          path: untrusted
+          artifact-ids: ${{ inputs.source-artifact-id }}
+          path: source
+          merge-multiple: true
+      - name: Checkout checked source
+        env:
+          MERGED_SHA: ${{ inputs.merged-sha }}
+        run: |
+          git clone --no-checkout source/pr-source.bundle untrusted
+          git -C untrusted checkout --detach "$MERGED_SHA"
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
         with:
@@ -92,13 +103,18 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.target-sha }}
           path: trusted
-      - name: Checkout untrusted
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download checked source
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          persist-credentials: false
-          repository: ${{ inputs.merged-repository }}
-          ref: ${{ inputs.merged-sha }}
-          path: untrusted
+          artifact-ids: ${{ inputs.source-artifact-id }}
+          path: source
+          merge-multiple: true
+      - name: Checkout checked source
+        env:
+          MERGED_SHA: ${{ inputs.merged-sha }}
+        run: |
+          git clone --no-checkout source/pr-source.bundle untrusted
+          git -C untrusted checkout --detach "$MERGED_SHA"
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
         with:
@@ -152,6 +168,7 @@ jobs:
       - name: Compare
         env:
           BASE_BRANCH: ${{ inputs.base-branch }}
+          BASE_SHA: ${{ inputs.base-sha }}
           HEAD_BRANCH: ${{ inputs.head-branch }}
           HEAD_REPOSITORY: ${{ inputs.head-repository }}
           HEAD_REPOSITORY_ID: ${{ inputs.head-repository-id }}
@@ -164,7 +181,7 @@ jobs:
         run: |
           jq -n \
             --arg baseBranch "$BASE_BRANCH" \
-            --arg baseSha "$TARGET_SHA" \
+            --arg baseSha "$BASE_SHA" \
             --arg headBranch "$HEAD_BRANCH" \
             --arg headRepository "$HEAD_REPOSITORY" \
             --argjson headRepositoryId "$HEAD_REPOSITORY_ID" \

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import process from "node:process";
 import {
+	currentBranchSha,
 	githubRepository,
 	githubRequest,
 	githubRequestPages,
@@ -95,17 +96,6 @@ function parsePullRequest(value: unknown): PullRequestInfo {
 		userLogin: requireString(user.login, "pull request.user.login"),
 		userType: requireString(user.type, "pull request.user.type"),
 	};
-}
-
-async function currentBranchSha(branch: string): Promise<string> {
-	const value = requireRecord(
-		await githubRequest(
-			`/repos/${githubRepository()}/branches/${encodeURIComponent(branch)}`,
-		),
-		"base branch",
-	);
-	const commit = requireRecord(value.commit, "base branch.commit");
-	return requireString(commit.sha, "base branch.commit.sha");
 }
 
 async function triggeringPullRequest(

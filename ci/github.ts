@@ -1,6 +1,11 @@
 import { writeFileSync } from "node:fs";
 import process from "node:process";
-import { parseJson, requiredEnvironment } from "./lib.ts";
+import {
+	parseJson,
+	requiredEnvironment,
+	requireRecord,
+	requireString,
+} from "./lib.ts";
 
 export type GitHubRequestOptions = Readonly<{
 	body?: unknown;
@@ -82,6 +87,21 @@ export async function downloadGitHubArtifact(
 
 export function githubRepository(): string {
 	return requiredEnvironment("GITHUB_REPOSITORY");
+}
+
+export async function currentBranchSha(branch: string): Promise<string> {
+	const value = requireRecord(
+		await githubRequest(
+			`/repos/${githubRepository()}/branches/${encodeURIComponent(branch)}`,
+		),
+		"base branch",
+	);
+	const commit = requireRecord(value.commit, "base branch.commit");
+	const sha = requireString(commit.sha, "base branch.commit.sha");
+	if (!/^[0-9a-f]{40}$/.test(sha)) {
+		throw new Error("base branch.commit.sha must be a full commit SHA");
+	}
+	return sha;
 }
 
 export function decodeBase64(value: string): string {
