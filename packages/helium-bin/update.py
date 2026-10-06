@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update helium-bin (aarch64-darwin) from the official GitHub release."""
+"""Update Helium's Linux and macOS releases independently."""
 
 from __future__ import annotations
 
@@ -13,19 +13,23 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
-ROOT = Path(__file__).parents[2]
-LATEST_RELEASE_URL = "https://github.com/imputnet/helium-macos/releases/latest"
+SOURCES = Path(__file__).with_name("sources.json")
 USER_AGENT = "9bingyin-nur-packages-updater"
+PLATFORMS = {
+    "linux": (
+        "helium-linux",
+        {
+            "x86_64-linux": "x86_64_linux.tar.xz",
+            "aarch64-linux": "arm64_linux.tar.xz",
+        },
+    ),
+    "darwin": ("helium-macos", {"aarch64-darwin": "arm64-macos.dmg"}),
+}
 
 
-def run(command: list[str], *, capture: bool = False) -> str:
-    result = subprocess.run(command, check=True, text=True, capture_output=capture)
-    return result.stdout if capture else ""
-
-
-def latest_release() -> tuple[str, str]:
+def latest_release(repository: str) -> str:
     request = urllib.request.Request(
-        LATEST_RELEASE_URL,
+        f"https://github.com/imputnet/{repository}/releases/latest",
         headers={"User-Agent": USER_AGENT},
         method="HEAD",
     )
@@ -33,76 +37,70 @@ def latest_release() -> tuple[str, str]:
         final_url = response.geturl()
 
     path = urlparse(final_url).path
-    prefix = "/imputnet/helium-macos/releases/tag/"
+    prefix = f"/imputnet/{repository}/releases/tag/"
     if not path.startswith(prefix):
         raise RuntimeError(f"Unexpected Helium release URL: {final_url}")
     version = unquote(path.removeprefix(prefix)).strip("/")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+_-]*", version):
         raise RuntimeError(f"Invalid Helium release tag: {version}")
+    return version
 
-    encoded_version = quote(version, safe=".+_-")
-    asset_name = f"helium_{version}_arm64-macos.dmg"
+
+def asset_url(repository: str, version: str, suffix: str) -> str:
+    asset = (
+        f"helium-{version}-{suffix}"
+        if repository == "helium-linux"
+        else f"helium_{version}_{suffix}"
+    )
     return (
-        version,
-        "https://github.com/imputnet/helium-macos/releases/download/"
-        f"{encoded_version}/{quote(asset_name)}",
+        f"https://github.com/imputnet/{repository}/releases/download/"
+        f"{quote(version, safe='.+_-')}/{quote(asset)}"
     )
 
 
 def prefetch_sri_hash(url: str) -> str:
-    payload: object = json.loads(
-        run(["nix", "store", "prefetch-file", "--json", url], capture=True)
+    result = subprocess.run(
+        ["nix", "store", "prefetch-file", "--json", url],
+        check=True,
+        text=True,
+        capture_output=True,
     )
+    payload: object = json.loads(result.stdout)
     if not isinstance(payload, dict):
         raise RuntimeError(
             f"nix store prefetch-file returned an invalid payload for {url}"
         )
     hash_value = payload.get("hash")
-    if not isinstance(hash_value, str):
-        raise RuntimeError(f"nix store prefetch-file returned no hash for {url}")
+    if not isinstance(hash_value, str) or not hash_value.startswith("sha256-"):
+        raise RuntimeError(f"nix store prefetch-file returned no SRI hash for {url}")
     return hash_value
 
 
-def replace_once(text: str, pattern: str, replacement: str, error: str) -> str:
-    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE)
-    if count != 1:
-        raise RuntimeError(error)
-    return updated
+def update_package() -> list[dict[str, str]]:
+    sources = json.loads(SOURCES.read_text())
+    changes = []
+    for platform, (repository, assets) in PLATFORMS.items():
+        version = latest_release(repository)
+        old_version = sources[platform]["version"]
+        if old_version == version:
+            continue
+        hashes = {
+            system: prefetch_sri_hash(asset_url(repository, version, suffix))
+            for system, suffix in assets.items()
+        }
+        sources[platform] = {"version": version, "hashes": hashes}
+        label = "macos" if platform == "darwin" else "linux"
+        changes.append(f"{label} {old_version} -> {version}")
 
-
-def current_version(package_text: str) -> str:
-    match = re.search(r'^  version = "([^"]+)";', package_text, flags=re.MULTILINE)
-    if match is None:
-        raise RuntimeError("Failed to read current Helium version")
-    return match.group(1)
-
-
-def update_package(version: str, url: str) -> None:
-    package_path = ROOT / "packages/helium-bin/package.nix"
-    text = package_path.read_text()
-    if current_version(text) == version:
-        print(f"helium-bin is already at {version}")
-        return
-
-    text = replace_once(
-        text,
-        r'^  version = "[^"]+";',
-        f'  version = "{version}";',
-        "Failed to update Helium version",
-    )
-    text = replace_once(
-        text,
-        r'(hash = ")[^"]+(";)',
-        rf"\g<1>{prefetch_sri_hash(url)}\2",
-        "Failed to update Helium hash",
-    )
-    package_path.write_text(text)
+    if not changes:
+        return []
+    SOURCES.write_text(json.dumps(sources, indent=2) + "\n")
+    return [{"commitMessage": "helium-bin: " + "; ".join(changes)}]
 
 
 def main() -> None:
     argparse.ArgumentParser(description=__doc__).parse_args()
-    version, url = latest_release()
-    update_package(version, url)
+    print(json.dumps(update_package()))
 
 
 if __name__ == "__main__":
@@ -110,6 +108,7 @@ if __name__ == "__main__":
         main()
     except (
         OSError,
+        ValueError,
         RuntimeError,
         subprocess.CalledProcessError,
         urllib.error.URLError,

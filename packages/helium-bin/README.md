@@ -1,6 +1,8 @@
 # Helium
 
-隐私向 Chromium 浏览器。仅 `aarch64-darwin`。包名 `helium-bin`。
+隐私向 Chromium 浏览器。支持 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin`。包名 `helium-bin`。
+
+Linux 使用 `imputnet/helium-linux` 的归档，macOS 使用 `imputnet/helium-macos` 的 DMG。两平台独立更新，版本可以不同。`sources.json` 保存版本和各架构哈希。
 
 Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 偏好，并跳过首次 `helium://setup`。
 
@@ -16,14 +18,19 @@ Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 
 }
 ```
 
-nix-darwin 里把模块放进 Home Manager 的 `sharedModules`。
+在 NixOS 和 nix-darwin 中，也可通过 Home Manager 的 `sharedModules` 引入模块。
+
+扩展、词典和 Native Messaging Host 使用以下配置目录：
+
+- Linux：`${xdg.configHome}/helium`，默认 `~/.config/helium`。
+- macOS：`~/Library/Application Support/net.imput.helium`。
 
 ## 配置项
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `package` | 本仓库 `helium-bin` | 使用的 Helium 包 |
-| `commandLineArgs` | `[]` | 通过 `helium` 命令启动时追加的参数 |
+| `commandLineArgs` | `[]` | 命令行和 Linux 桌面启动时追加的参数 |
 | `profileDirectory` | `"Default"` | 要写 Services 偏好的 Chromium profile |
 | `autoUpdate` | `false` | 是否允许 Helium 自己更新。Nix 管理版本时保持关闭 |
 | `services.enable` | `true` | 是否访问 Helium Services |
@@ -66,4 +73,6 @@ programs.helium = {
 };
 ```
 
-`commandLineArgs` 只对 `helium` 命令生效。Finder、Dock、Spotlight 直接启动 App Bundle，不会经过 wrapper。
+`commandLineArgs` 对 `helium` 命令和 Linux 桌面启动器生效。macOS 的 Finder、Dock、Spotlight 直接启动应用，不使用这些参数。
+
+Linux 包含桌面文件、图标、GTK/Qt 集成和运行库。在 Wayland 会话中设置 `NIXOS_OZONE_WL=1` 可启用原生后端。

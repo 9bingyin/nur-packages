@@ -8,14 +8,17 @@ let
   inherit (lib) literalExpression mkOption types;
 
   cfg = config.programs.helium;
-  configDirectory = "Library/Application Support/net.imput.helium";
+  configDirectory =
+    if pkgs.stdenv.hostPlatform.isDarwin then
+      "${config.home.homeDirectory}/Library/Application Support/net.imput.helium"
+    else
+      "${config.xdg.configHome}/helium";
   heliumServicesOrigin =
     if cfg.services.origin == null then
       "https://services.helium.imput.net"
     else
       lib.removeSuffix "/" cfg.services.origin;
   heliumExtensionUpdateUrl = "${heliumServicesOrigin}/ext";
-  preferences = "${config.home.homeDirectory}/${configDirectory}/${cfg.profileDirectory}/Preferences";
   heliumPreferences = {
     helium = {
       completed_onboarding = true;
@@ -80,10 +83,6 @@ let
     name = "helium-native-messaging-hosts";
     paths = cfg.nativeMessagingHosts;
   };
-  wrapperFlags = lib.concatMapStringsSep " " lib.escapeShellArg (
-    [ "--simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT" ] ++ cfg.commandLineArgs
-  );
-  wrapperArgs = "--add-flags ${lib.escapeShellArg wrapperFlags}";
 in
 {
   options.programs.helium = {
@@ -186,8 +185,8 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = pkgs.stdenv.hostPlatform.isDarwin;
-        message = "programs.helium is only supported on darwin.";
+        assertion = pkgs.stdenv.hostPlatform.isLinux || pkgs.stdenv.hostPlatform.isDarwin;
+        message = "programs.helium is only supported on Linux and macOS.";
       }
       {
         assertion = builtins.all (ext: ext.crxPath != null -> ext.version != null) cfg.extensions;
@@ -210,9 +209,17 @@ in
           postBuild = ''
             rm -f "$out/bin/helium"
             makeWrapper \
-              "${cfg.package}/Applications/Helium.app/Contents/MacOS/Helium" \
+              "${lib.getExe cfg.package}" \
               "$out/bin/helium" \
-              ${wrapperArgs}
+              --add-flags ${lib.escapeShellArg (lib.escapeShellArgs cfg.commandLineArgs)}
+            ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+              if [ -f "$out/share/applications/helium.desktop" ]; then
+                cp --remove-destination "${cfg.package}/share/applications/helium.desktop" \
+                  "$out/share/applications/helium.desktop"
+                sed -i "s#^Exec=[^ ]*#Exec=$out/bin/helium#" \
+                  "$out/share/applications/helium.desktop"
+              fi
+            ''}
           '';
         };
 
@@ -229,28 +236,42 @@ in
       };
 
     home.activation.heliumUpdatePreferences = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      preferences=${lib.escapeShellArg preferences}
-      preferencesDirectory="$(/usr/bin/dirname "$preferences")"
-      heliumPreferences=${lib.escapeShellArg (builtins.toJSON heliumPreferences)}
+      (
+        preferencesDirectory=${lib.escapeShellArg "${configDirectory}/${cfg.profileDirectory}"}
+        preferences="$preferencesDirectory/Preferences"
+        heliumPreferences=${lib.escapeShellArg (builtins.toJSON heliumPreferences)}
 
-      if [ -e "$preferences" ] && [ ! -f "$preferences" ]; then
-        echo "Helium preferences path is not a regular file: $preferences" >&2
-        exit 1
-      fi
+        if [[ -v DRY_RUN ]]; then
+          echo "Would update Helium preferences at '$preferences'"
+          exit 0
+        fi
 
-      /bin/mkdir -p "$preferencesDirectory"
-      temporary="$(/usr/bin/mktemp "$preferencesDirectory/.Preferences.XXXXXX")"
-      /bin/chmod 600 "$temporary"
+        if [[ -L "$preferences" || ( -e "$preferences" && ! -f "$preferences" ) ]]; then
+          errorEcho "Helium preferences must be a regular file, not a symlink: $preferences" >&2
+          exit 1
+        fi
 
-      if [ -f "$preferences" ]; then
-        ${lib.getExe pkgs.jq} --argjson heliumPreferences "$heliumPreferences" \
-          '. * $heliumPreferences' \
-          "$preferences" > "$temporary"
-      else
-        printf '%s\n' "$heliumPreferences" > "$temporary"
-      fi
+        verboseEcho "Merging Helium preferences into '$preferences'"
+        run ${pkgs.coreutils}/bin/mkdir -p "$preferencesDirectory"
+        umask 077
+        temporary="$(${pkgs.coreutils}/bin/mktemp "$preferencesDirectory/.Preferences.XXXXXX")"
+        trap '${pkgs.coreutils}/bin/rm -f -- "$temporary"' EXIT
 
-      /bin/mv "$temporary" "$preferences"
+        if [[ -f "$preferences" ]]; then
+          ${lib.getExe pkgs.jq} --slurp --argjson heliumPreferences "$heliumPreferences" \
+            'if length == 1 and (.[0] | type) == "object"
+             then .[0] * $heliumPreferences
+             else error("Helium Preferences must contain one JSON object") end' \
+            "$preferences" > "$temporary"
+        else
+          ${lib.getExe pkgs.jq} --null-input --argjson heliumPreferences "$heliumPreferences" \
+            '$heliumPreferences' > "$temporary"
+        fi
+
+        if ! ${pkgs.diffutils}/bin/cmp -s -- "$temporary" "$preferences"; then
+          run ${pkgs.coreutils}/bin/mv -f -- "$temporary" "$preferences"
+        fi
+      )
     '';
   };
 }
