@@ -9,8 +9,8 @@ on:
 
 permissions: {}
 
-# Serialize the final base-SHA check and synchronous merge. Stale package PRs
-# are rechecked against the new base without rewriting their branches.
+# Serialize the final base-SHA check and synchronous merge. At most one fresh
+# revision can merge before Refresh Updates rebases the remaining bot PRs.
 concurrency:
   group: merge-pr-main
   cancel-in-progress: false
@@ -19,8 +19,7 @@ jobs:
   policy:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      (github.event.workflow_run.event == 'pull_request_target' ||
-       github.event.workflow_run.event == 'workflow_dispatch')
+      github.event.workflow_run.event == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

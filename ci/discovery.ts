@@ -26,20 +26,6 @@ in
 `;
 
 type UpdateType = "flake-input" | "package";
-type UpdateScope = "regular" | "nixpkgs" | "all";
-
-export function parseUpdateScope(value: string | undefined): UpdateScope {
-	const scope = value || "regular";
-	if (scope !== "regular" && scope !== "nixpkgs" && scope !== "all") {
-		throw new Error(`Unsupported update scope: ${scope}`);
-	}
-	return scope;
-}
-
-export function targetInScope(target: Target, scope: UpdateScope): boolean {
-	const nixpkgs = target.type === "flake-input" && target.name === "nixpkgs";
-	return scope === "all" || (scope === "nixpkgs" ? nixpkgs : !nixpkgs);
-}
 
 export type Target = Readonly<{
 	currentVersion: string;
@@ -286,14 +272,10 @@ export async function discoverUpdates(): Promise<void> {
 	const systems = readSystems();
 	const packageFilter = splitFilter(process.env.PACKAGES);
 	const inputFilter = splitFilter(process.env.INPUTS);
-	const scope = parseUpdateScope(process.env.UPDATE_SCOPE);
-	const packages =
-		scope === "nixpkgs" ? [] : await discoverPackages(systems, packageFilter);
-	const inputs = parseFlakeInputs(readJsonFile("flake.lock"), inputFilter);
 	const matrix = buildMatrix(
 		systems,
-		packages.filter((target) => targetInScope(target, scope)),
-		inputs.filter((target) => targetInScope(target, scope)),
+		await discoverPackages(systems, packageFilter),
+		parseFlakeInputs(readJsonFile("flake.lock"), inputFilter),
 	);
 	const batchMatrix = buildBatchMatrix(matrix);
 	console.log(prettyJson(batchMatrix).trimEnd());

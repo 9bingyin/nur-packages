@@ -486,72 +486,6 @@ function updateTypeFromEnvironment(): UpdateType {
 	return updateType;
 }
 
-export function flakeInputSnapshot(value: unknown, name: string): string {
-	const lock = requireRecord(value, "flake.lock");
-	const nodes = requireRecord(lock.nodes, "flake.lock.nodes");
-	const root = requireRecord(nodes.root, "flake.lock root");
-	const inputs = requireRecord(root.inputs, "flake.lock root inputs");
-	const target = requireString(inputs[name], `flake.lock input ${name}`);
-	const selected = new Map<string, Record<string, unknown>>();
-	function visit(nodeName: string): void {
-		if (selected.has(nodeName)) return;
-		const node = requireRecord(nodes[nodeName], `flake.lock node ${nodeName}`);
-		selected.set(nodeName, node);
-		if (isRecord(node.inputs)) {
-			for (const dependency of Object.values(node.inputs)) {
-				// Keep follows references symbolic: another input's update is not this input's update.
-				if (typeof dependency === "string") visit(dependency);
-			}
-		}
-	}
-	visit(target);
-	return JSON.stringify(
-		[...selected].sort(([left], [right]) => left.localeCompare(right)),
-	);
-}
-
-export async function existingUpdateMatches(
-	repository: string,
-	head: string,
-	manifest: Pick<UpdateManifest, "type" | "name">,
-): Promise<boolean> {
-	await run(["git", "-C", repository, "fetch", "--no-tags", "origin", head]);
-	if (manifest.type === "package") {
-		const result = await run(
-			[
-				"git",
-				"-C",
-				repository,
-				"diff",
-				"--cached",
-				"--quiet",
-				head,
-				"--",
-				`packages/${manifest.name}/`,
-			],
-			{ check: false, capture: true },
-		);
-		if (result.code > 1)
-			throw new Error(
-				`Failed to compare the existing update: ${result.stderr}`,
-			);
-		return result.code === 0;
-	}
-	const oldLock = await run(
-		["git", "-C", repository, "show", `${head}:flake.lock`],
-		{
-			capture: true,
-		},
-	);
-	const newLock = await run(["git", "-C", repository, "show", ":flake.lock"], {
-		capture: true,
-	});
-	return (
-		flakeInputSnapshot(parseJson(oldLock.stdout), manifest.name) ===
-		flakeInputSnapshot(parseJson(newLock.stdout), manifest.name)
-	);
-}
-
 function sha256(content: string): string {
 	return createHash("sha256").update(content).digest("hex");
 }
@@ -1085,10 +1019,6 @@ export async function publishUpdate(): Promise<void> {
 		console.log(
 			`::warning::Skipping ${branch} because it contains manual changes`,
 		);
-		return;
-	}
-	if (oldHead && (await existingUpdateMatches(".", oldHead, manifest))) {
-		console.log(`Skipping ${branch}: the open PR already contains this update`);
 		return;
 	}
 	await run(["git", "checkout", "-B", branch]);

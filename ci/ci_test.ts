@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import {
 	chmodSync,
-	copyFileSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -11,17 +9,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import process from "node:process";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
 import { nixFastBuildCommand } from "./cache.ts";
 import {
 	buildBatchMatrix,
 	buildMatrix,
 	parseFlakeInputs,
 	parsePackageVersions,
-	parseUpdateScope,
-	targetInScope,
 } from "./discovery.ts";
 import { combineEvalResults, evalReportMarkdown } from "./eval-compare.ts";
 import {
@@ -34,25 +28,9 @@ import { pullRequestMatchesMerge } from "./merge.ts";
 import {
 	dependabotDiffAllowed,
 	ownBotDiffAllowed,
-	provenanceDiffAllowed,
 	selectMergeMode,
 } from "./merge-policy.ts";
-import {
-	dispatchPrRecheck,
-	latestCompletedPrRun,
-	parsePrRevision,
-	prRunMatches,
-	readPrRevision,
-	requestedBaseSha,
-	shouldRecheck,
-	trustedPrRun,
-	trustedRevisionArtifact,
-} from "./pr-runs.ts";
-import {
-	parsePrEvent,
-	preparePullRequest,
-	validateMergeParents,
-} from "./prepare-pr.ts";
+import { validateMergeParents } from "./prepare-pr.ts";
 import { checksSucceeded } from "./publish-status.ts";
 import {
 	reviewBuildCommand,
@@ -61,8 +39,6 @@ import {
 } from "./review.ts";
 import {
 	buildPullRequest,
-	existingUpdateMatches,
-	flakeInputSnapshot,
 	parseCommitChanges,
 	parseRawDiff,
 	parseTarget,
@@ -81,7 +57,6 @@ import {
 	formatUpdateProvenance,
 	parseUpdateProvenance,
 } from "./update-provenance.ts";
-import { automaticRebaseAllowed } from "./update-queue.ts";
 
 const REVIEW_REVISION = {
 	baseBranch: "main",
@@ -116,282 +91,6 @@ test("prepare validates the test merge parents", () => {
 	assert.throws(() => validateMergeParents(["head", "base"], "base", "head"));
 });
 
-test("prepare rechecks the current base and distributes one pinned merge snapshot", async () => {
-	const directory = mkdtempSync(join(tmpdir(), "prepare-recheck-test-"));
-	const server = join(directory, "server");
-	const baseRepository = join(server, "owner/repository.git");
-	const headRepository = join(server, "contributor/fork.git");
-	const seed = join(directory, "seed");
-	const originalDirectory = process.cwd();
-	const originalFetch = globalThis.fetch;
-	const originalEnvironment = { ...process.env };
-	const environment = {
-		GH_TOKEN: "test-only",
-		GITHUB_REPOSITORY: "owner/repository",
-		GITHUB_REPOSITORY_ID: "1",
-		GITHUB_SERVER_URL: pathToFileURL(server).href,
-		GITHUB_RUN_ID: "10",
-		GITHUB_RUN_ATTEMPT: "1",
-		GITHUB_EVENT_NAME: "workflow_dispatch",
-		GITHUB_EVENT_PATH: join(directory, "event.json"),
-		GITHUB_OUTPUT: join(directory, "output"),
-	};
-	const git = async (...args: string[]) =>
-		(await run(["git", "-C", seed, ...args], { capture: true })).stdout.trim();
-	try {
-		await run(["git", "init", "--bare", baseRepository], { capture: true });
-		await run(["git", "init", "--bare", headRepository], { capture: true });
-		await run(["git", "init", "--initial-branch=main", seed], {
-			capture: true,
-		});
-		await git("config", "user.name", "CI Test");
-		await git("config", "user.email", "ci@example.invalid");
-		writeFileSync(join(seed, "base.txt"), "original base\n");
-		await git("add", ".");
-		await git("commit", "-m", "base");
-		const oldBase = await git("rev-parse", "HEAD");
-		await git("checkout", "-b", "update/foo");
-		writeFileSync(join(seed, "head.txt"), "pull request\n");
-		await git("add", ".");
-		await git("commit", "-m", "head");
-		let headSha = await git("rev-parse", "HEAD");
-		await git("push", headRepository, "HEAD:refs/heads/update/foo");
-		await git("checkout", "main");
-		writeFileSync(join(seed, "base.txt"), "advanced base\n");
-		await git("add", ".");
-		await git("commit", "-m", "advance main");
-		const baseSha = await git("rev-parse", "HEAD");
-		await git("push", baseRepository, "HEAD:refs/heads/main");
-		let currentBaseSha = baseSha;
-		const event = (expectedBase = baseSha, expectedHead = headSha) => {
-			writeFileSync(
-				environment.GITHUB_EVENT_PATH,
-				JSON.stringify({
-					inputs: {
-						"pull-request-number": "42",
-						"base-sha": expectedBase,
-						"head-sha": expectedHead,
-					},
-				}),
-			);
-		};
-		Object.assign(process.env, environment);
-		process.chdir(directory);
-		globalThis.fetch = Object.assign(
-			async (input: Parameters<typeof fetch>[0]) => {
-				const url = new URL(String(input));
-				if (url.pathname.endsWith("/pulls/42")) {
-					return Response.json({
-						number: 42,
-						state: "open",
-						mergeable: true,
-						merge_commit_sha: "9".repeat(40),
-						base: {
-							label: "owner:main",
-							ref: "main",
-							sha: oldBase,
-							repo: { id: 1, full_name: "owner/repository" },
-						},
-						head: {
-							label: "contributor:update/foo",
-							ref: "update/foo",
-							sha: headSha,
-							repo: { id: 2, full_name: "contributor/fork" },
-						},
-					});
-				}
-				if (url.pathname.endsWith("/branches/main"))
-					return Response.json({ commit: { sha: currentBaseSha } });
-				if (url.pathname.endsWith("/contents/ci/systems.json")) {
-					assert.ok(
-						[baseSha, oldBase].includes(String(url.searchParams.get("ref"))),
-					);
-					return Response.json({
-						encoding: "base64",
-						content: Buffer.from(
-							JSON.stringify([
-								{ system: "x86_64-linux", runner: "ubuntu-latest" },
-							]),
-						).toString("base64"),
-					});
-				}
-				if (url.pathname.endsWith("/pulls/42/files"))
-					return Response.json([{ filename: "head.txt" }]);
-				throw new Error(`Unexpected request: ${url}`);
-			},
-			{ preconnect: originalFetch.preconnect },
-		);
-		const outputs = () =>
-			Object.fromEntries(
-				readFileSync(environment.GITHUB_OUTPUT, "utf8")
-					.trim()
-					.split("\n")
-					.map((line) => line.split("=")),
-			);
-		event();
-		await preparePullRequest();
-		const revision = parsePrRevision(
-			JSON.parse(readFileSync("pr-revision.json", "utf8")),
-		);
-		assert.equal(revision.baseSha, baseSha);
-		assert.equal(revision.headSha, headSha);
-		assert.equal(revision.mergeable, true);
-		assert.equal(outputs().targetSha, baseSha);
-		const workspace = join(directory, "consumer");
-		mkdirSync(join(workspace, "source"), { recursive: true });
-		copyFileSync(
-			"pr-source.bundle",
-			join(workspace, "source/pr-source.bundle"),
-		);
-		const workflow = requireRecord(
-			Bun.YAML.parse(
-				readFileSync(
-					new URL("../.github/workflows/check.yml", import.meta.url),
-					"utf8",
-				),
-			),
-			"Check workflow",
-		);
-		const jobs = requireRecord(workflow.jobs, "Check jobs");
-		const ci = requireRecord(jobs.ci, "Check CI job");
-		assert.ok(Array.isArray(ci.steps));
-		const checkout = ci.steps
-			.map((step) => requireRecord(step, "Check step"))
-			.find((step) => step.name === "Checkout checked source");
-		assert.ok(checkout);
-		const mergedSha = String(outputs().mergedSha);
-		await run(["bash", "-e", "-c", String(checkout.run)], {
-			cwd: workspace,
-			env: { MERGED_SHA: mergedSha },
-			capture: true,
-		});
-		const consumer = join(workspace, "untrusted");
-		assert.equal(
-			readFileSync(join(consumer, "base.txt"), "utf8"),
-			"advanced base\n",
-		);
-		assert.equal(
-			readFileSync(join(consumer, "head.txt"), "utf8"),
-			"pull request\n",
-		);
-		const parents = (
-			await run(
-				["git", "-C", consumer, "show", "-s", "--format=%P", mergedSha],
-				{ capture: true },
-			)
-		).stdout
-			.trim()
-			.split(" ");
-		assert.equal(validateMergeParents(parents, baseSha, headSha), baseSha);
-		assert.ok(!(await git("status", "--porcelain")).trim());
-		assert.ok(
-			(
-				await git("ls-remote", headRepository, "refs/heads/update/foo")
-			).startsWith(headSha),
-		);
-		await preparePullRequest();
-		assert.equal(outputs().mergedSha, mergedSha);
-		event(baseSha, "8".repeat(40));
-		await assert.rejects(preparePullRequest(), /changed before its recheck/);
-		event();
-		currentBaseSha = "7".repeat(40);
-		await assert.rejects(preparePullRequest(), /changed before its recheck/);
-		currentBaseSha = baseSha;
-		await git("checkout", "update/foo");
-		writeFileSync(join(seed, "base.txt"), "conflicting head\n");
-		await git("add", ".");
-		await git("commit", "-m", "conflict");
-		headSha = await git("rev-parse", "HEAD");
-		await git("push", headRepository, "HEAD:refs/heads/update/foo");
-		event();
-		await preparePullRequest();
-		const conflicting = parsePrRevision(
-			JSON.parse(readFileSync("pr-revision.json", "utf8")),
-		);
-		assert.equal(conflicting.baseSha, baseSha);
-		assert.equal(conflicting.mergeable, false);
-		assert.equal(outputs().mergedSha, headSha);
-		assert.equal(outputs().targetSha, oldBase);
-		await run(
-			["git", "clone", "--no-checkout", "pr-source.bundle", "conflicting"],
-			{ capture: true },
-		);
-		await run(["git", "-C", "conflicting", "checkout", "--detach", headSha], {
-			capture: true,
-		});
-		assert.equal(
-			readFileSync("conflicting/base.txt", "utf8"),
-			"conflicting head\n",
-		);
-	} finally {
-		globalThis.fetch = originalFetch;
-		process.chdir(originalDirectory);
-		for (const name of Object.keys(environment)) {
-			const value = originalEnvironment[name];
-			if (value === undefined) delete process.env[name];
-			else process.env[name] = value;
-		}
-		rmSync(directory, { recursive: true, force: true });
-	}
-});
-
-test("every PR check consumes the source artifact pinned by prepare", () => {
-	const workflow = (name: string) =>
-		requireRecord(
-			Bun.YAML.parse(
-				readFileSync(
-					new URL(`../.github/workflows/${name}.yml`, import.meta.url),
-					"utf8",
-				),
-			),
-			`${name} workflow`,
-		);
-	const jobs = requireRecord(workflow("pull-request-target").jobs, "PR jobs");
-	const prepare = requireRecord(jobs.prepare, "prepare job");
-	assert.equal(
-		requireRecord(prepare.outputs, "prepare outputs")["source-artifact-id"],
-		"${{ steps.source.outputs.artifact-id }}",
-	);
-	const commands = new Set<string>();
-	let consumers = 0;
-	for (const name of ["check", "lint", "eval", "build", "review"]) {
-		const caller = requireRecord(jobs[name], `${name} caller`);
-		assert.equal(
-			requireRecord(caller.with, `${name} inputs`)["source-artifact-id"],
-			"${{ needs.prepare.outputs.source-artifact-id }}",
-		);
-		for (const value of Object.values(
-			requireRecord(workflow(name).jobs, `${name} jobs`),
-		)) {
-			const job = requireRecord(value, `${name} job`);
-			assert.ok(Array.isArray(job.steps));
-			const steps = job.steps.map((step) =>
-				requireRecord(step, `${name} step`),
-			);
-			const download = steps.find(
-				(step) => step.name === "Download checked source",
-			);
-			if (!download) continue;
-			const options = requireRecord(download.with, "source download options");
-			assert.equal(options["artifact-ids"], "${{ inputs.source-artifact-id }}");
-			assert.equal(options.path, "source");
-			assert.equal(options["merge-multiple"], true);
-			const checkout = steps.find(
-				(step) => step.name === "Checkout checked source",
-			);
-			assert.ok(checkout);
-			assert.equal(
-				requireRecord(checkout.env, "source checkout environment").MERGED_SHA,
-				"${{ inputs.merged-sha }}",
-			);
-			commands.add(String(checkout.run));
-			consumers += 1;
-		}
-	}
-	assert.equal(consumers, 7);
-	assert.equal(commands.size, 1);
-});
-
 test("merge policy downgrades manually changed bot branches", () => {
 	const files = parseRawDiff(
 		":100644 100644 1111111 2222222 M\0packages/foo/package.nix\0",
@@ -399,7 +98,6 @@ test("merge policy downgrades manually changed bot branches", () => {
 	const reference = {
 		baseRef: "main",
 		baseRepositoryId: 1,
-		mergeable: true,
 		baseSha: "1".repeat(40),
 		headRef: "update/foo",
 		headRepositoryId: 1,
@@ -407,7 +105,6 @@ test("merge policy downgrades manually changed bot branches", () => {
 		number: 1,
 	};
 	const pullRequest = {
-		baseRef: reference.baseRef,
 		baseSha: reference.baseSha,
 		draft: false,
 		headRepositoryId: 1,
@@ -439,320 +136,6 @@ test("merge policy downgrades manually changed bot branches", () => {
 		),
 		"stale",
 	);
-});
-
-test("update scopes separate weekly nixpkgs from regular updates", () => {
-	const targets = [
-		{
-			currentVersion: "1",
-			name: "foo",
-			system: "aarch64-darwin",
-			type: "package" as const,
-		},
-		{
-			currentVersion: "1",
-			name: "nixpkgs",
-			system: "x86_64-linux",
-			type: "flake-input" as const,
-		},
-		{
-			currentVersion: "1",
-			name: "treefmt-nix",
-			system: "x86_64-linux",
-			type: "flake-input" as const,
-		},
-	];
-	assert.equal(parseUpdateScope(undefined), "regular");
-	assert.throws(() => parseUpdateScope("unknown"));
-	assert.deepEqual(
-		targets
-			.filter((target) => targetInScope(target, "regular"))
-			.map(({ name }) => name),
-		["foo", "treefmt-nix"],
-	);
-	assert.deepEqual(
-		targets
-			.filter((target) => targetInScope(target, "nixpkgs"))
-			.map(({ name }) => name),
-		["nixpkgs"],
-	);
-	assert.equal(
-		targets.filter((target) => targetInScope(target, "all")).length,
-		3,
-	);
-});
-
-test("only nixpkgs may be automatically rebased", () => {
-	const provenance = {
-		baseSha: "1".repeat(40),
-		headSha: "2".repeat(40),
-		patchSha256: "3".repeat(64),
-		runId: 1,
-		runAttempt: 1,
-		targetType: "flake-input" as const,
-		targetName: "nixpkgs",
-	};
-	assert.equal(automaticRebaseAllowed(provenance), true);
-	assert.equal(
-		automaticRebaseAllowed({ ...provenance, targetType: "package" }),
-		false,
-	);
-	assert.equal(
-		automaticRebaseAllowed({ ...provenance, targetName: "treefmt-nix" }),
-		false,
-	);
-});
-
-test("PR dispatch binds the requested head and base revisions", () => {
-	const inputs = {
-		"pull-request-number": "42",
-		"head-sha": "1".repeat(40),
-		"base-sha": "2".repeat(40),
-	};
-	assert.deepEqual(parsePrEvent("workflow_dispatch", { inputs }), {
-		kind: "dispatch",
-		number: 42,
-		headSha: inputs["head-sha"],
-		baseSha: inputs["base-sha"],
-	});
-	assert.deepEqual(
-		parsePrEvent("pull_request_target", { pull_request: { number: 42 } }),
-		{ kind: "pull-request", number: 42 },
-	);
-	assert.throws(() =>
-		parsePrEvent("workflow_dispatch", {
-			inputs: { ...inputs, "head-sha": "main" },
-		}),
-	);
-	assert.throws(() =>
-		parsePrEvent("workflow_dispatch", {
-			inputs: { ...inputs, "base-sha": "main" },
-		}),
-	);
-	assert.throws(() =>
-		parsePrEvent("workflow_dispatch", {
-			inputs: { ...inputs, "pull-request-number": "0" },
-		}),
-	);
-	assert.throws(() => parsePrEvent("push", {}));
-});
-
-const PR_REVISION = {
-	baseRef: "main",
-	baseSha: "1".repeat(40),
-	headRef: "update/foo",
-	headRepositoryId: 1,
-	headSha: "2".repeat(40),
-	mergeable: true,
-	number: 42,
-	repositoryId: 1,
-	runId: 100,
-	runAttempt: 1,
-} as const;
-
-test("base advancement rechecks a package without changing its head", () => {
-	const original = parsePrRevision(PR_REVISION);
-	const newBase = "3".repeat(40);
-	assert.equal(shouldRecheck(original, newBase, original.headSha), true);
-	const rechecked = { ...original, baseSha: newBase };
-	assert.equal(shouldRecheck(rechecked, newBase, original.headSha), false);
-	assert.equal(shouldRecheck(original, newBase, "4".repeat(40)), false);
-	assert.equal(
-		shouldRecheck(rechecked, "5".repeat(40), original.headSha),
-		true,
-	);
-	assert.throws(() => parsePrRevision({ ...original, runAttempt: 0 }));
-	assert.throws(() => parsePrRevision({ ...original, baseSha: "main" }));
-});
-
-test("recheck scheduling waits for active checks and identifies dispatched runs", () => {
-	const completed = {
-		display_title: `PR #42 @ ${PR_REVISION.headSha} / ${PR_REVISION.baseSha}`,
-		event: "workflow_dispatch",
-		head_branch: "main",
-		head_sha: PR_REVISION.baseSha,
-		status: "completed",
-		conclusion: "success",
-	};
-	const active = { ...completed, status: "in_progress" };
-	assert.equal(
-		prRunMatches(completed, 42, "update/foo", PR_REVISION.headSha),
-		true,
-	);
-	assert.equal(
-		prRunMatches(completed, 43, "update/foo", PR_REVISION.headSha),
-		false,
-	);
-	assert.equal(
-		prRunMatches(completed, 42, "update/foo", "9".repeat(40)),
-		false,
-	);
-	assert.equal(requestedBaseSha(completed), PR_REVISION.baseSha);
-	assert.equal(
-		latestCompletedPrRun(
-			[active, completed],
-			42,
-			"update/foo",
-			PR_REVISION.headSha,
-		),
-		null,
-	);
-	assert.equal(
-		latestCompletedPrRun([completed], 42, "update/foo", PR_REVISION.headSha),
-		completed,
-	);
-	assert.equal(
-		latestCompletedPrRun([], 42, "update/foo", PR_REVISION.headSha),
-		null,
-	);
-});
-
-test("checked revisions come only from the trusted workflow and prepare job", () => {
-	const workflow = {
-		path: ".github/workflows/pull-request-target.yml",
-		event: "workflow_dispatch",
-		repository: { id: 1 },
-	};
-	assert.equal(trustedPrRun(workflow, 1), true);
-	assert.equal(trustedPrRun({ ...workflow, event: "pull_request" }, 1), false);
-	assert.equal(
-		trustedPrRun({ ...workflow, path: ".github/workflows/untrusted.yml" }, 1),
-		false,
-	);
-	assert.equal(trustedPrRun(workflow, 2), false);
-	const prepare = {
-		name: "prepare",
-		conclusion: "success",
-		started_at: "2026-10-01T00:00:00Z",
-		completed_at: "2026-10-01T00:01:00Z",
-	};
-	const artifact = { expired: false, created_at: "2026-10-01T00:00:30Z" };
-	assert.equal(trustedRevisionArtifact(artifact, prepare), true);
-	assert.equal(
-		trustedRevisionArtifact(
-			{ ...artifact, created_at: "2026-10-01T00:02:00Z" },
-			prepare,
-		),
-		false,
-	);
-	assert.equal(
-		trustedRevisionArtifact({ ...artifact, expired: true }, prepare),
-		false,
-	);
-	assert.equal(
-		trustedRevisionArtifact(artifact, { ...prepare, conclusion: "failure" }),
-		false,
-	);
-});
-
-test("fresh rechecks validate provenance against the original update base", () => {
-	const patch = "trusted package update";
-	const files = parseRawDiff(
-		":100644 100644 1111111 2222222 M\0packages/foo/package.nix\0",
-	);
-	const provenance = {
-		baseSha: "6".repeat(40),
-		headSha: PR_REVISION.headSha,
-		patchSha256: createHash("sha256").update(patch).digest("hex"),
-		targetName: "foo",
-		targetType: "package" as const,
-		runId: 1,
-		runAttempt: 1,
-	};
-	assert.equal(
-		provenanceDiffAllowed(provenance, "update/foo", patch, files),
-		true,
-	);
-	assert.equal(
-		provenanceDiffAllowed(provenance, "update/foo", `${patch} changed`, files),
-		false,
-	);
-	assert.equal(
-		provenanceDiffAllowed(provenance, "update/bar", patch, files),
-		false,
-	);
-	assert.equal(
-		provenanceDiffAllowed(
-			{ ...provenance, targetName: "bar" },
-			"update/bar",
-			patch,
-			files,
-		),
-		false,
-	);
-	const pullRequest = {
-		baseRef: PR_REVISION.baseRef,
-		baseSha: PR_REVISION.baseSha,
-		headSha: PR_REVISION.headSha,
-		headRepositoryId: 1,
-		number: 42,
-		draft: false,
-		state: "open",
-		userId: 10,
-		userLogin: "updates[bot]",
-		userType: "Bot",
-	};
-	assert.equal(
-		selectMergeMode(pullRequest, PR_REVISION, 1, 10, true, files, ""),
-		"auto",
-	);
-	assert.equal(
-		selectMergeMode(
-			{ ...pullRequest, baseSha: "3".repeat(40) },
-			PR_REVISION,
-			1,
-			10,
-			true,
-			files,
-			"",
-		),
-		"stale",
-	);
-	assert.equal(
-		selectMergeMode(
-			pullRequest,
-			{ ...PR_REVISION, mergeable: false },
-			1,
-			10,
-			true,
-			files,
-			"",
-		),
-		"manual",
-	);
-});
-
-test("flake input comparisons ignore updates to unrelated and followed inputs", () => {
-	const lock = {
-		nodes: {
-			root: { inputs: { nixpkgs: "nixpkgs", tool: "tool" } },
-			nixpkgs: { locked: { rev: "old" } },
-			tool: {
-				locked: { rev: "tool-old" },
-				inputs: { nixpkgs: ["nixpkgs"], dependency: "dep" },
-			},
-			dep: { locked: { rev: "dep-old" } },
-		},
-	};
-	const nixpkgsChanged = {
-		nodes: { ...lock.nodes, nixpkgs: { locked: { rev: "new" } } },
-	};
-	assert.equal(
-		flakeInputSnapshot(lock, "tool"),
-		flakeInputSnapshot(nixpkgsChanged, "tool"),
-	);
-	assert.notEqual(
-		flakeInputSnapshot(lock, "nixpkgs"),
-		flakeInputSnapshot(nixpkgsChanged, "nixpkgs"),
-	);
-	assert.notEqual(
-		flakeInputSnapshot(lock, "tool"),
-		flakeInputSnapshot(
-			{ nodes: { ...lock.nodes, dep: { locked: { rev: "dep-new" } } } },
-			"tool",
-		),
-	);
-	assert.throws(() => flakeInputSnapshot(lock, "missing"));
 });
 
 test("dependabot auto mode accepts only full SHA action changes", () => {
@@ -790,30 +173,6 @@ test("nix-fast-build scans every uncached package", () => {
 	);
 });
 
-test("merge uses the actual branch tip instead of the cached PR base", () => {
-	const expected = {
-		baseRef: "main",
-		baseSha: "1".repeat(40),
-		headSha: "2".repeat(40),
-		number: 42,
-	};
-	const pullRequest = {
-		number: 42,
-		state: "open",
-		draft: false,
-		base: { ref: "main", sha: "3".repeat(40) },
-		head: { sha: expected.headSha },
-	};
-	assert.equal(
-		pullRequestMatchesMerge(pullRequest, expected, expected.baseSha),
-		true,
-	);
-	assert.equal(
-		pullRequestMatchesMerge(pullRequest, expected, "4".repeat(40)),
-		false,
-	);
-});
-
 test("merge requires the exact reviewed revision", () => {
 	const expected = {
 		baseRef: "main",
@@ -822,7 +181,7 @@ test("merge requires the exact reviewed revision", () => {
 		number: 1,
 	};
 	const pullRequest = {
-		base: { ref: expected.baseRef, sha: expected.baseSha },
+		base: { sha: expected.baseSha },
 		draft: false,
 		head: { sha: expected.headSha },
 		number: 1,
@@ -831,14 +190,6 @@ test("merge requires the exact reviewed revision", () => {
 	assert.equal(
 		pullRequestMatchesMerge(pullRequest, expected, expected.baseSha),
 		true,
-	);
-	assert.equal(
-		pullRequestMatchesMerge(
-			{ ...pullRequest, base: { ...pullRequest.base, ref: "other" } },
-			expected,
-			expected.baseSha,
-		),
-		false,
 	);
 	assert.equal(
 		pullRequestMatchesMerge(pullRequest, expected, "4".repeat(40)),
@@ -1332,198 +683,6 @@ test("source update scripts run from the writable worktree", () => {
 				"/worktree",
 			],
 		);
-	}
-});
-
-test("unchanged open updates are not rebased by the periodic publisher", async () => {
-	const directory = mkdtempSync(join(tmpdir(), "update-match-test-"));
-	const repository = join(directory, "work");
-	const remote = join(directory, "remote.git");
-	mkdirSync(repository);
-	const git = async (...args: string[]) =>
-		(
-			await run(["git", "-C", repository, ...args], {
-				capture: true,
-				env: { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
-			})
-		).stdout.trim();
-	try {
-		await git("init", "--initial-branch=main");
-		await git("config", "user.name", "CI");
-		await git("config", "user.email", "ci@example.com");
-		await git("config", "commit.gpgsign", "false");
-		await git("config", "core.hooksPath", "/dev/null");
-		await run(["git", "init", "--bare", remote], { capture: true });
-		await git("remote", "add", "origin", remote);
-		mkdirSync(join(repository, "packages/foo"), { recursive: true });
-		const packagePath = join(repository, "packages/foo/package.nix");
-		const lock = {
-			nodes: {
-				root: { inputs: { nixpkgs: "nixpkgs", tool: "tool" } },
-				nixpkgs: { locked: { rev: "old" } },
-				tool: { locked: { rev: "tool" }, inputs: { nixpkgs: ["nixpkgs"] } },
-			},
-		};
-		writeFileSync(packagePath, "version 1\nhash old\n");
-		writeFileSync(join(repository, "flake.lock"), JSON.stringify(lock));
-		await git("add", ".");
-		await git("commit", "-m", "base");
-		await git("checkout", "-b", "update/foo");
-		writeFileSync(packagePath, "version 2\nhash new\n");
-		await git("add", ".");
-		await git("commit", "-m", "foo update");
-		const head = await git("rev-parse", "HEAD");
-		await git("push", "origin", "HEAD:refs/heads/update/foo");
-		await git("checkout", "main");
-		writeFileSync(join(repository, "unrelated"), "another merged update");
-		writeFileSync(
-			join(repository, "flake.lock"),
-			JSON.stringify({
-				nodes: { ...lock.nodes, nixpkgs: { locked: { rev: "new" } } },
-			}),
-		);
-		await git("add", ".");
-		await git("commit", "-m", "advance main");
-		writeFileSync(packagePath, "version 2\nhash new\n");
-		await git("add", ".");
-		assert.equal(
-			await existingUpdateMatches(repository, head, {
-				type: "package",
-				name: "foo",
-			}),
-			true,
-		);
-		assert.equal(
-			await existingUpdateMatches(repository, head, {
-				type: "flake-input",
-				name: "tool",
-			}),
-			true,
-		);
-		assert.equal(
-			await existingUpdateMatches(repository, head, {
-				type: "flake-input",
-				name: "nixpkgs",
-			}),
-			false,
-		);
-		writeFileSync(packagePath, "version 2\nhash newer-component\n");
-		await git("add", ".");
-		assert.equal(
-			await existingUpdateMatches(repository, head, {
-				type: "package",
-				name: "foo",
-			}),
-			false,
-		);
-		assert.equal(
-			(await git("ls-remote", "origin", "refs/heads/update/foo")).split(
-				/\s/,
-			)[0],
-			head,
-		);
-	} finally {
-		rmSync(directory, { force: true, recursive: true });
-	}
-});
-
-test("revision artifacts bind the checked base, run and attempt", async () => {
-	const directory = mkdtempSync(join(tmpdir(), "revision-test-"));
-	const archive = join(directory, "revision.zip");
-	const oldToken = process.env.GH_TOKEN;
-	const oldActionsToken = process.env.GH_ACTIONS_TOKEN;
-	const oldRepository = process.env.GITHUB_REPOSITORY;
-	let created = "2026-10-01T00:00:30Z";
-	let available = true;
-	let dispatched = 0;
-	process.env.GH_TOKEN = "test-only";
-	process.env.GH_ACTIONS_TOKEN = "test-actions-only";
-	process.env.GITHUB_REPOSITORY = "owner/repository";
-	const originalFetch = globalThis.fetch;
-	globalThis.fetch = Object.assign(
-		async (
-			input: Parameters<typeof fetch>[0],
-			init?: Parameters<typeof fetch>[1],
-		) => {
-			const url = String(input);
-			assert.equal(
-				new Headers(init?.headers).get("Authorization"),
-				"Bearer test-actions-only",
-			);
-			if (url.endsWith("/dispatches")) {
-				assert.equal(init?.method, "POST");
-				assert.deepEqual(JSON.parse(String(init?.body)), {
-					ref: "main",
-					inputs: {
-						"pull-request-number": "42",
-						"head-sha": PR_REVISION.headSha,
-						"base-sha": PR_REVISION.baseSha,
-					},
-				});
-				dispatched += 1;
-				return new Response(null, { status: 204 });
-			}
-			if (url.includes("/artifacts?") && !available)
-				return Response.json({ artifacts: [] });
-			if (url.includes("/artifacts?"))
-				return Response.json({
-					artifacts: [
-						{
-							id: 1,
-							name: "pr-revision-1",
-							expired: false,
-							created_at: created,
-						},
-					],
-				});
-			if (url.includes("/attempts/1/jobs"))
-				return Response.json({
-					jobs: [
-						{
-							name: "prepare",
-							conclusion: "success",
-							started_at: "2026-10-01T00:00:00Z",
-							completed_at: "2026-10-01T00:01:00Z",
-						},
-					],
-				});
-			if (url.endsWith("/artifacts/1/zip"))
-				return new Response(new Uint8Array(readFileSync(archive)));
-			throw new Error(`Unexpected request: ${url}`);
-		},
-		{ preconnect: originalFetch.preconnect },
-	);
-	try {
-		writeFileSync(
-			join(directory, "pr-revision.json"),
-			JSON.stringify(PR_REVISION),
-		);
-		await run(["zip", "-q", archive, "pr-revision.json"], {
-			cwd: directory,
-			capture: true,
-		});
-		assert.deepEqual(await readPrRevision(100, 1, 1), PR_REVISION);
-		await dispatchPrRecheck(
-			42,
-			"main",
-			PR_REVISION.baseSha,
-			PR_REVISION.headSha,
-		);
-		assert.equal(dispatched, 1);
-		await assert.rejects(readPrRevision(100, 1, 2), /does not match/);
-		created = "2026-10-01T00:02:00Z";
-		await assert.rejects(readPrRevision(100, 1, 1), /trusted prepare/);
-		available = false;
-		assert.equal(await readPrRevision(100, 1, 1), null);
-	} finally {
-		globalThis.fetch = originalFetch;
-		if (oldToken === undefined) delete process.env.GH_TOKEN;
-		else process.env.GH_TOKEN = oldToken;
-		if (oldActionsToken === undefined) delete process.env.GH_ACTIONS_TOKEN;
-		else process.env.GH_ACTIONS_TOKEN = oldActionsToken;
-		if (oldRepository === undefined) delete process.env.GITHUB_REPOSITORY;
-		else process.env.GITHUB_REPOSITORY = oldRepository;
-		rmSync(directory, { force: true, recursive: true });
 	}
 });
 

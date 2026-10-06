@@ -1,5 +1,10 @@
-import { currentBranchSha, githubRepository, githubRequest } from "./github.ts";
-import { requiredEnvironment, requireRecord, run } from "./lib.ts";
+import { githubRepository, githubRequest } from "./github.ts";
+import {
+	requiredEnvironment,
+	requireRecord,
+	requireString,
+	run,
+} from "./lib.ts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
@@ -38,7 +43,7 @@ export function pullRequestMatchesMerge(
 	return (
 		pullRequest.number === expected.number &&
 		currentBaseSha === expected.baseSha &&
-		base.ref === expected.baseRef &&
+		base.sha === expected.baseSha &&
 		pullRequest.state === "open" &&
 		pullRequest.draft === false &&
 		head.sha === expected.headSha
@@ -51,7 +56,14 @@ export async function mergePullRequest(): Promise<void> {
 	const pullRequest = await githubRequest(
 		`/repos/${githubRepository()}/pulls/${expected.number}`,
 	);
-	const currentBaseSha = await currentBranchSha(expected.baseRef);
+	const branch = requireRecord(
+		await githubRequest(
+			`/repos/${githubRepository()}/branches/${encodeURIComponent(expected.baseRef)}`,
+		),
+		"base branch",
+	);
+	const commit = requireRecord(branch.commit, "base branch.commit");
+	const currentBaseSha = requireString(commit.sha, "base branch.commit.sha");
 	if (!pullRequestMatchesMerge(pullRequest, expected, currentBaseSha)) {
 		throw new Error("The pull request changed after Review");
 	}

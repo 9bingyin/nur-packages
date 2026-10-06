@@ -10,20 +10,7 @@ import {
 } from "./github.ts";
 import { isRecord, requiredEnvironment, requireRecord, run } from "./lib.ts";
 import { ownBotDiffAllowed } from "./merge-policy.ts";
-import {
-	dispatchPrRecheck,
-	latestCompletedPrRun,
-	latestPrRuns,
-	readPrRevision,
-	requestedBaseSha,
-	shouldRecheck,
-	trustedPrRun,
-} from "./pr-runs.ts";
-import {
-	parseRawDiff,
-	pushUpdateBranch,
-	validateChangedFiles,
-} from "./update.ts";
+import { parseRawDiff, pushUpdateBranch } from "./update.ts";
 import {
 	formatUpdateProvenance,
 	parseUpdateProvenance,
@@ -159,13 +146,7 @@ async function validatedPatch(
 		],
 		{ capture: true },
 	);
-	const files = parseRawDiff(raw.stdout);
-	validateChangedFiles(
-		candidate.provenance.targetType,
-		candidate.provenance.targetName,
-		files,
-	);
-	if (!ownBotDiffAllowed(candidate.branch, files)) {
+	if (!ownBotDiffAllowed(candidate.branch, parseRawDiff(raw.stdout))) {
 		throw new Error(`Pull request #${candidate.number} has an unsafe diff`);
 	}
 	const patch = (
@@ -188,65 +169,6 @@ async function validatedPatch(
 		throw new Error(`Pull request #${candidate.number} patch digest changed`);
 	}
 	return patch;
-}
-
-export function automaticRebaseAllowed(provenance: UpdateProvenance): boolean {
-	return (
-		provenance.targetType === "flake-input" &&
-		provenance.targetName === "nixpkgs"
-	);
-}
-
-async function recheckCandidate(
-	repository: string,
-	candidate: QueueCandidate,
-	baseBranch: string,
-	baseSha: string,
-	repositoryId: number,
-	runs: readonly Record<string, unknown>[],
-): Promise<void> {
-	const latest = latestCompletedPrRun(
-		runs,
-		candidate.number,
-		candidate.branch,
-		candidate.headSha,
-	);
-	if (latest === null) {
-		console.log(
-			`PR #${candidate.number} has no completed check to supersede, or a check is still running`,
-		);
-		return;
-	}
-	if (latest.conclusion === "success") {
-		const revision = await readPrRevision(
-			positiveInteger(latest.id, "workflow run.id"),
-			positiveInteger(latest.run_attempt, "workflow run.run_attempt"),
-			repositoryId,
-		);
-		if (
-			revision !== null &&
-			(revision.number !== candidate.number ||
-				revision.headRef !== candidate.branch ||
-				!revision.mergeable ||
-				!shouldRecheck(revision, baseSha, candidate.headSha))
-		) {
-			return;
-		}
-	} else if (
-		(requestedBaseSha(latest) ?? candidate.provenance.baseSha) === baseSha
-	) {
-		return;
-	}
-	await validatedPatch(repository, candidate);
-	await dispatchPrRecheck(
-		candidate.number,
-		baseBranch,
-		baseSha,
-		candidate.headSha,
-	);
-	console.log(
-		`Requested recheck of PR #${candidate.number} on ${baseSha}; head remains ${candidate.headSha}`,
-	);
 }
 
 async function refreshCandidate(
@@ -371,38 +293,26 @@ export async function refreshUpdateQueue(): Promise<void> {
 	const repositoryId = positiveInteger(repositoryRecord.id, "repository.id");
 	const baseSha = await currentBaseSha(repository, baseBranch);
 	const candidates = await queueCandidates(baseBranch, botUserId, repositoryId);
-	const regular = candidates.filter(
-		(candidate) => !automaticRebaseAllowed(candidate.provenance),
+	const stale = candidates.filter(
+		(candidate) => candidate.provenance.baseSha !== baseSha,
 	);
-	const runs =
-		regular.length > 0
-			? (await latestPrRuns(regular)).filter((value) =>
-					trustedPrRun(value, repositoryId),
-				)
-			: [];
+	if (stale.length === 0) {
+		console.log("No stale automated update PR is waiting");
+		return;
+	}
 	const failures: string[] = [];
-	for (const candidate of candidates) {
+	for (const candidate of stale) {
 		try {
-			if (automaticRebaseAllowed(candidate.provenance)) {
-				if (candidate.provenance.baseSha !== baseSha) {
-					await refreshCandidate(repository, candidate, baseSha);
-				}
-			} else {
-				await recheckCandidate(
-					repository,
-					candidate,
-					baseBranch,
-					baseSha,
-					repositoryId,
-					runs,
-				);
-			}
+			await refreshCandidate(repository, candidate, baseSha);
 		} catch (error) {
-			const message = `Failed to reconcile PR #${candidate.number}: ${String(error)}`;
+			const message = `Failed to refresh PR #${candidate.number}: ${String(error)}`;
 			failures.push(message);
 			console.error(`::error::${message}`);
 		}
 	}
+	console.log(
+		`Refreshed ${stale.length - failures.length}/${stale.length} stale update PRs`,
+	);
 	if (failures.length > 0) {
 		throw new Error(
 			`Some update PRs could not be refreshed:\n${failures.join("\n")}`,

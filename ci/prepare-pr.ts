@@ -1,30 +1,21 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import process from "node:process";
-import {
-	currentBranchSha,
-	decodeBase64,
-	githubRepository,
-	githubRequest,
-} from "./github.ts";
+import { decodeBase64, githubRepository, githubRequest } from "./github.ts";
 import type { SystemConfig } from "./lib.ts";
 import {
-	CommandError,
 	parseJson,
 	parseSystems,
-	prettyJson,
 	requireRecord,
 	requireString,
-	run,
+	sleep,
 	writeOutput,
-	writeTextFile,
 } from "./lib.ts";
-import { parsePrRevision } from "./pr-runs.ts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const RETRY_INTERVALS_SECONDS = [5, 10, 20, 40, 80] as const;
 
 type RepositoryRef = Readonly<{
+	label: string;
 	ref: string;
 	repo: string;
 	repoId: number;
@@ -34,6 +25,8 @@ type RepositoryRef = Readonly<{
 type PullRequest = Readonly<{
 	base: RepositoryRef;
 	head: RepositoryRef;
+	mergeCommitSha: string | null;
+	mergeable: boolean | null;
 	number: number;
 	state: string;
 }>;
@@ -54,6 +47,7 @@ function parseRepositoryRef(value: unknown, name: string): RepositoryRef {
 		throw new Error(`${name}.repo.id must be a positive integer`);
 	}
 	return {
+		label: requireString(ref.label, `${name}.label`),
 		ref: requireString(ref.ref, `${name}.ref`),
 		repo: requireString(repository.full_name, `${name}.repo.full_name`),
 		repoId,
@@ -67,69 +61,58 @@ function parsePullRequest(value: unknown): PullRequest {
 	if (!Number.isInteger(number) || typeof number !== "number" || number <= 0) {
 		throw new Error("pull request.number must be a positive integer");
 	}
+	const mergeable = pullRequest.mergeable;
+	if (mergeable !== null && typeof mergeable !== "boolean") {
+		throw new Error("pull request.mergeable must be boolean or null");
+	}
+	const mergeCommitSha = pullRequest.merge_commit_sha;
+	if (mergeCommitSha !== null && typeof mergeCommitSha !== "string") {
+		throw new Error("pull request.merge_commit_sha must be string or null");
+	}
 	return {
 		base: parseRepositoryRef(pullRequest.base, "pull request.base"),
 		head: parseRepositoryRef(pullRequest.head, "pull request.head"),
+		mergeCommitSha,
+		mergeable,
 		number,
 		state: requireString(pullRequest.state, "pull request.state"),
 	};
 }
 
-export function parsePrEvent(
-	eventName: string,
-	value: unknown,
-):
-	| Readonly<{ kind: "pull-request"; number: number }>
-	| Readonly<{
-			kind: "dispatch";
-			number: number;
-			headSha: string;
-			baseSha: string;
-	  }> {
-	const event = requireRecord(value, "GitHub event");
-	if (eventName === "workflow_dispatch") {
-		const inputs = requireRecord(event.inputs, "event.inputs");
-		const number = Number(inputs["pull-request-number"]);
-		if (!Number.isInteger(number) || number <= 0) {
-			throw new Error("Dispatch requires a pull request number");
-		}
-		return {
-			kind: "dispatch",
-			number,
-			headSha: validateSha("dispatch head SHA", inputs["head-sha"]),
-			baseSha: validateSha("dispatch base SHA", inputs["base-sha"]),
-		};
-	}
-	if (eventName !== "pull_request_target") {
-		throw new Error("prepare requires a PR or recheck event");
-	}
+async function eventPullRequestNumber(): Promise<number> {
+	const eventPath = requireString(
+		process.env.GITHUB_EVENT_PATH,
+		"GITHUB_EVENT_PATH",
+	);
+	const event = requireRecord(
+		parseJson(readFileSync(eventPath, "utf8"), "GitHub event"),
+		"event",
+	);
 	const pullRequest = requireRecord(event.pull_request, "event.pull_request");
 	const number = pullRequest.number;
 	if (!Number.isInteger(number) || typeof number !== "number" || number <= 0) {
 		throw new Error("prepare requires a pull_request_target event");
 	}
-	return { kind: "pull-request", number };
-}
-
-function pullRequestEvent(): ReturnType<typeof parsePrEvent> {
-	const eventPath = requireString(
-		process.env.GITHUB_EVENT_PATH,
-		"GITHUB_EVENT_PATH",
-	);
-	return parsePrEvent(
-		requireString(process.env.GITHUB_EVENT_NAME, "GITHUB_EVENT_NAME"),
-		parseJson(readFileSync(eventPath, "utf8"), "GitHub event"),
-	);
+	return number;
 }
 
 async function pullRequestInfo(number: number): Promise<PullRequest> {
-	const pullRequest = parsePullRequest(
-		await githubRequest(`/repos/${githubRepository()}/pulls/${number}`),
-	);
-	if (pullRequest.state !== "open") {
-		throw new Error("The pull request is no longer open");
+	for (const retrySeconds of RETRY_INTERVALS_SECONDS) {
+		const pullRequest = parsePullRequest(
+			await githubRequest(`/repos/${githubRepository()}/pulls/${number}`),
+		);
+		if (pullRequest.state !== "open") {
+			throw new Error("The pull request is no longer open");
+		}
+		if (pullRequest.mergeable !== null) {
+			return pullRequest;
+		}
+		console.log(
+			`GitHub is still computing mergeability; retrying in ${retrySeconds} seconds`,
+		);
+		await sleep(retrySeconds * 1000);
 	}
-	return pullRequest;
+	throw new Error("GitHub did not finish computing pull request mergeability");
 }
 
 export function validateMergeParents(
@@ -152,95 +135,42 @@ export function validateMergeParents(
 	return firstParent;
 }
 
-async function createPrSnapshot(
-	pullRequest: PullRequest,
+async function mergeTargetSha(
+	sha: string,
 	baseSha: string,
-): Promise<
-	Readonly<{ mergedSha: string; targetSha: string; mergeable: boolean }>
-> {
-	const repository = mkdtempSync(join(tmpdir(), "pr-source-"));
-	const bundle = resolve("pr-source.bundle");
-	const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
-	const git = async (...args: string[]) =>
-		(
-			await run(["git", "-C", repository, ...args], { capture: true })
-		).stdout.trim();
-	try {
-		await git("init", "--initial-branch=checked-source");
-		await git(
-			"fetch",
-			"--no-tags",
-			`${serverUrl}/${pullRequest.base.repo}.git`,
-			baseSha,
-		);
-		await git(
-			"fetch",
-			"--no-tags",
-			`${serverUrl}/${pullRequest.head.repo}.git`,
-			pullRequest.head.sha,
-		);
-		const command = [
-			"git",
-			"-C",
-			repository,
-			"merge-tree",
-			"--write-tree",
-			baseSha,
-			pullRequest.head.sha,
-		];
-		const merge = await run(command, { capture: true, check: false });
-		if (merge.code !== 0 && merge.code !== 1)
-			throw new CommandError(command, merge);
-		const mergeable = merge.success;
-		let mergedSha = pullRequest.head.sha;
-		let targetSha = baseSha;
-		if (mergeable) {
-			const tree = validateSha("merged tree", merge.stdout.trim());
-			const date = await git("show", "-s", "--format=%cI", baseSha);
-			const commit = await run(
-				[
-					"git",
-					"-C",
-					repository,
-					"commit-tree",
-					tree,
-					"-p",
-					baseSha,
-					"-p",
-					pullRequest.head.sha,
-					"-m",
-					"CI test merge",
-				],
-				{
-					capture: true,
-					env: {
-						GIT_AUTHOR_NAME: "nur-packages CI",
-						GIT_AUTHOR_EMAIL: "ci@example.invalid",
-						GIT_AUTHOR_DATE: date,
-						GIT_COMMITTER_NAME: "nur-packages CI",
-						GIT_COMMITTER_EMAIL: "ci@example.invalid",
-						GIT_COMMITTER_DATE: date,
-					},
-				},
-			);
-			mergedSha = validateSha("mergedSha", commit.stdout.trim());
-			validateMergeParents(
-				(await git("show", "-s", "--format=%P", mergedSha)).split(" "),
-				baseSha,
-				pullRequest.head.sha,
-			);
-		} else {
-			targetSha = validateSha(
-				"targetSha",
-				await git("merge-base", baseSha, pullRequest.head.sha),
-			);
-		}
-		await git("update-ref", "refs/heads/checked-source", mergedSha);
-		await git("bundle", "create", bundle, "HEAD", "refs/heads/checked-source");
-		return { mergedSha, targetSha, mergeable };
-	} finally {
-		rmSync(repository, { recursive: true, force: true });
+	headSha: string,
+): Promise<string> {
+	const commit = requireRecord(
+		await githubRequest(`/repos/${githubRepository()}/commits/${sha}`),
+		"merge commit",
+	);
+	if (!Array.isArray(commit.parents)) {
+		throw new Error("Merge commit parents must be an array");
 	}
+	const parents = commit.parents.map((parent, index) =>
+		validateSha(
+			`merge commit parent ${index}`,
+			requireRecord(parent, `merge commit parent ${index}`).sha,
+		),
+	);
+	return validateMergeParents(parents, baseSha, headSha);
+}
+
+async function mergeBaseSha(
+	base: RepositoryRef,
+	head: RepositoryRef,
+): Promise<string> {
+	const comparison = requireRecord(
+		await githubRequest(
+			`/repos/${githubRepository()}/compare/${encodeURIComponent(`${base.label}...${head.label}`)}`,
+		),
+		"commit comparison",
+	);
+	const mergeBase = requireRecord(
+		comparison.merge_base_commit,
+		"comparison.merge_base_commit",
+	);
+	return validateSha("targetSha", mergeBase.sha);
 }
 
 async function readSystems(ref: string): Promise<readonly SystemConfig[]> {
@@ -281,29 +211,27 @@ async function changedFiles(number: number): Promise<readonly string[]> {
 }
 
 export async function preparePullRequest(): Promise<void> {
-	const event = pullRequestEvent();
-	const pullRequest = await pullRequestInfo(event.number);
+	const pullRequest = await pullRequestInfo(await eventPullRequestNumber());
 	const headSha = validateSha("headSha", pullRequest.head.sha);
-	const baseSha = await currentBranchSha(pullRequest.base.ref);
-	if (
-		event.kind === "dispatch" &&
-		(event.headSha !== headSha || event.baseSha !== baseSha)
-	) {
-		throw new Error("The pull request changed before its recheck started");
-	}
 
-	const { mergedSha, targetSha, mergeable } = await createPrSnapshot(
-		pullRequest,
-		baseSha,
-	);
-	const mergedRepository = mergeable
-		? pullRequest.base.repo
-		: pullRequest.head.repo;
-	console.log(
-		mergeable
-			? "The pull request is mergeable; checking its pinned local merge commit"
-			: "::warning::The pull request has conflicts; checking its head against the merge base",
-	);
+	let mergedRepository: string;
+	let mergedSha: string;
+	let targetSha: string;
+	if (pullRequest.mergeable) {
+		mergedRepository = pullRequest.base.repo;
+		mergedSha = validateSha("mergedSha", pullRequest.mergeCommitSha);
+		targetSha = await mergeTargetSha(mergedSha, pullRequest.base.sha, headSha);
+		console.log(
+			"The pull request is mergeable; checking its test merge commit",
+		);
+	} else {
+		mergedRepository = pullRequest.head.repo;
+		mergedSha = headSha;
+		targetSha = await mergeBaseSha(pullRequest.base, pullRequest.head);
+		console.log(
+			"::warning::The pull request has conflicts; checking its head against the merge base",
+		);
+	}
 
 	const systemConfigs = await readSystems(targetSha);
 	const systems = systemConfigs.map(({ system }) => system);
@@ -311,39 +239,19 @@ export async function preparePullRequest(): Promise<void> {
 
 	console.log(`base branch: ${pullRequest.base.ref}`);
 	console.log(`head branch: ${pullRequest.head.ref}`);
-	console.log(`base SHA: ${baseSha}`);
 	console.log(`head SHA: ${headSha}`);
 	console.log(`merged repository: ${mergedRepository}`);
 	console.log(`merged SHA: ${mergedSha}`);
 	console.log(`target SHA: ${targetSha}`);
 	console.log(`systems: ${systems.join(", ")}`);
 
-	writeTextFile(
-		"pr-revision.json",
-		prettyJson(
-			parsePrRevision({
-				baseRef: pullRequest.base.ref,
-				baseSha,
-				headRef: pullRequest.head.ref,
-				headRepositoryId: pullRequest.head.repoId,
-				headSha,
-				mergeable,
-				number: pullRequest.number,
-				repositoryId: Number(process.env.GITHUB_REPOSITORY_ID),
-				runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
-				runId: Number(process.env.GITHUB_RUN_ID),
-			}),
-		),
-	);
-
 	writeOutput("baseBranch", pullRequest.base.ref);
-	writeOutput("baseSha", baseSha);
 	writeOutput("headBranch", pullRequest.head.ref);
 	writeOutput("headRepository", pullRequest.head.repo);
 	writeOutput("headRepositoryId", String(pullRequest.head.repoId));
 	writeOutput("headSha", headSha);
 	writeOutput("matrix", JSON.stringify({ include: systemConfigs }));
-	writeOutput("mergeable", String(mergeable));
+	writeOutput("mergeable", String(pullRequest.mergeable));
 	writeOutput("mergedRepository", mergedRepository);
 	writeOutput("mergedSha", mergedSha);
 	writeOutput("targetSha", targetSha);

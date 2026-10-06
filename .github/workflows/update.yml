@@ -3,23 +3,14 @@ name: Update
 on:
   schedule:
     - cron: "0 0,4,18,21 * * *"
-    - cron: "30 12 * * 0"
   workflow_dispatch:
     inputs:
-      scope:
-        description: "Update scope. Regular excludes nixpkgs."
-        type: choice
-        options:
-          - regular
-          - nixpkgs
-          - all
-        default: regular
       packages:
         description: "Specific packages to update, separated by spaces. Empty means all discoverable packages."
         required: false
         default: ""
       inputs:
-        description: "Specific flake inputs within the selected scope, separated by spaces. Empty means all inputs in scope."
+        description: "Specific flake inputs to update, separated by spaces. Empty means all root inputs."
         required: false
         default: ""
 
@@ -56,7 +47,6 @@ jobs:
         env:
           PACKAGES: ${{ github.event.inputs.packages || '' }}
           INPUTS: ${{ github.event.inputs.inputs || '' }}
-          UPDATE_SCOPE: ${{ github.event.schedule == '30 12 * * 0' && 'nixpkgs' || github.event.inputs.scope || 'regular' }}
         run: bun ci/main.ts discovery
 
   update:
