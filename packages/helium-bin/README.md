@@ -22,7 +22,7 @@ Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 
 
 扩展、词典和 Native Messaging Host 使用以下配置目录：
 
-- Linux：`${xdg.configHome}/helium`，默认 `~/.config/helium`。
+- Linux：`${xdg.configHome}/net.imput.helium`，默认 `~/.config/net.imput.helium`。
 - macOS：`~/Library/Application Support/net.imput.helium`。
 
 ## 配置项

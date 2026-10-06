@@ -12,7 +12,7 @@ let
     if pkgs.stdenv.hostPlatform.isDarwin then
       "${config.home.homeDirectory}/Library/Application Support/net.imput.helium"
     else
-      "${config.xdg.configHome}/helium";
+      "${config.xdg.configHome}/net.imput.helium";
   heliumServicesOrigin =
     if cfg.services.origin == null then
       "https://services.helium.imput.net"
