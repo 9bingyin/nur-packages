@@ -10,11 +10,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "ayugram-desktop-bin";
-  version = "7.0.9";
+  version = "7.2.9";
 
   src = fetchurl {
     url = "https://github.com/AyuGram/AyuGramDesktop/releases/download/v${finalAttrs.version}/AyuGram.dmg";
-    hash = "sha256-JEu1AKzPtW8AbVZ4ruzuRTKo6xo9+qolnahzEMs3JB8=";
+    hash = "sha256-tjTkS2R9GJ9lbVTpcOldiv3INx3UtBJJM3MtO5GQels=";
   };
 
   nativeBuildInputs = [
