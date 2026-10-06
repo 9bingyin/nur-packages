@@ -19,7 +19,11 @@ import {
 	shouldRecheck,
 	trustedPrRun,
 } from "./pr-runs.ts";
-import { parseRawDiff, validateChangedFiles } from "./update.ts";
+import {
+	parseRawDiff,
+	pushUpdateBranch,
+	validateChangedFiles,
+} from "./update.ts";
 import {
 	formatUpdateProvenance,
 	parseUpdateProvenance,
@@ -302,15 +306,7 @@ async function refreshCandidate(
 		}
 		await run(["git", "-C", repository, "checkout", "-B", candidate.branch]);
 		await run(["git", "-C", repository, "commit", "-F", messagePath]);
-		await run([
-			"git",
-			"-C",
-			repository,
-			"push",
-			`--force-with-lease=refs/heads/${candidate.branch}:${candidate.headSha}`,
-			"origin",
-			`HEAD:refs/heads/${candidate.branch}`,
-		]);
+		await pushUpdateBranch(repository, candidate.branch, candidate.headSha);
 		const headSha = (
 			await run(["git", "-C", repository, "rev-parse", "HEAD"], {
 				capture: true,

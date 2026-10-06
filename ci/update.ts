@@ -13,6 +13,7 @@ import {
 	githubRequestPages,
 } from "./github.ts";
 import {
+	CommandError,
 	isRecord,
 	parseJson,
 	prettyJson,
@@ -21,6 +22,7 @@ import {
 	requireRecord,
 	requireString,
 	run,
+	sleep,
 	writeOutput,
 } from "./lib.ts";
 import {
@@ -882,9 +884,20 @@ export async function prepareUpdate(): Promise<void> {
 	);
 }
 
-async function remoteBranchHead(branch: string): Promise<string | null> {
+async function remoteBranchHead(
+	repository: string,
+	branch: string,
+): Promise<string | null> {
 	const result = await run(
-		["git", "ls-remote", "--heads", "origin", `refs/heads/${branch}`],
+		[
+			"git",
+			"-C",
+			repository,
+			"ls-remote",
+			"--heads",
+			"origin",
+			`refs/heads/${branch}`,
+		],
 		{ capture: true },
 	);
 	return result.stdout.trim().split(/\s+/)[0] || null;
@@ -973,6 +986,47 @@ export function inspectUpdate(): void {
 	);
 }
 
+export async function pushUpdateBranch(
+	repository: string,
+	branch: string,
+	oldHead: string | null,
+): Promise<void> {
+	const push = [
+		"git",
+		"-C",
+		repository,
+		"push",
+		`--force-with-lease=refs/heads/${branch}:${oldHead ?? ""}`,
+		"origin",
+		`HEAD:refs/heads/${branch}`,
+	];
+	const head = (
+		await run(["git", "-C", repository, "rev-parse", "HEAD"], { capture: true })
+	).stdout.trim();
+	for (let attempt = 1; attempt <= 2; attempt += 1) {
+		const result = await run(push, { capture: true, check: false });
+		process.stdout.write(result.stdout);
+		process.stderr.write(result.stderr);
+		if (result.success) return;
+		const transient =
+			/Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|returned error: 5\d\d|HTTP 5\d\d|Connection reset|Could not resolve host|Failed to connect|timed out/i.test(
+				result.stderr,
+			);
+		if (transient) {
+			try {
+				if ((await remoteBranchHead(repository, branch)) === head) return;
+			} catch (error) {
+				if (!(error instanceof CommandError)) throw error;
+			}
+		}
+		if (!transient || attempt === 2) throw new CommandError(push, result);
+		console.warn(
+			`::warning::Transient push failure for ${branch}; retrying once`,
+		);
+		await sleep(1000);
+	}
+}
+
 export async function publishUpdate(): Promise<void> {
 	requiredEnvironment("GH_TOKEN");
 	const directory = requiredEnvironment("UPDATE_ARTIFACT_DIR");
@@ -1016,7 +1070,7 @@ export async function publishUpdate(): Promise<void> {
 		throw new Error("Update manifest branch does not match the target");
 	}
 	const botUserId = positiveEnvironmentInteger("AUTOMATION_BOT_USER_ID");
-	const oldHead = await remoteBranchHead(branch);
+	const oldHead = await remoteBranchHead(".", branch);
 	const existingPullRequest = await pullRequestNumber(branch);
 	if (
 		oldHead &&
@@ -1039,12 +1093,7 @@ export async function publishUpdate(): Promise<void> {
 	}
 	await run(["git", "checkout", "-B", branch]);
 	await run(["git", "commit", "-m", manifest.pullRequest.commitMessage]);
-	const push = ["git", "push"];
-	if (oldHead) {
-		push.push(`--force-with-lease=refs/heads/${branch}:${oldHead}`);
-	}
-	push.push("origin", `HEAD:refs/heads/${branch}`);
-	await run(push);
+	await pushUpdateBranch(".", branch, oldHead);
 	const headSha = (
 		await run(["git", "rev-parse", "HEAD"], { capture: true })
 	).stdout.trim();

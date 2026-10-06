@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+	chmodSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -26,7 +27,7 @@ import {
 	markdownSummary,
 	parsePackageSet,
 } from "./eval-packages.ts";
-import { parseSystems, run } from "./lib.ts";
+import { parseSystems, requireRecord, run } from "./lib.ts";
 import { pullRequestMatchesMerge } from "./merge.ts";
 import {
 	dependabotDiffAllowed,
@@ -60,6 +61,7 @@ import {
 	parseRawDiff,
 	parseTarget,
 	parseUpdateScript,
+	pushUpdateBranch,
 	updateVersionIsValid,
 	validateChangedFiles,
 	worktreeCommand,
@@ -603,6 +605,192 @@ test("discovery builds package and flake input groups", () => {
 		[["x86_64-linux", 2]],
 	);
 	assert.equal(parseUpdateBatch(batches.include[0]?.targets).length, 2);
+});
+
+test("update checkout preserves parent objects for Nix worktrees", async () => {
+	const workflow = requireRecord(
+		Bun.YAML.parse(
+			readFileSync(
+				new URL("../.github/workflows/update.yml", import.meta.url),
+				"utf8",
+			),
+		),
+		"Update workflow",
+	);
+	const jobs = requireRecord(workflow.jobs, "Update jobs");
+	const update = requireRecord(jobs.update, "Update job");
+	assert.ok(Array.isArray(update.steps));
+	const checkout = requireRecord(update.steps[0], "Update checkout");
+	const options = requireRecord(checkout.with, "Update checkout options");
+	assert.equal(options["persist-credentials"], false);
+	const depth = options["fetch-depth"] ?? 1;
+	const directory = mkdtempSync(join(tmpdir(), "update-checkout-test-"));
+	const source = join(directory, "source");
+	const repository = join(directory, "checkout");
+	const worktree = join(directory, "worktree");
+	mkdirSync(source);
+	const git = async (...args: string[]) =>
+		run(["git", "-C", source, ...args], {
+			capture: true,
+			env: { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+		});
+	try {
+		await git("init", "--initial-branch=main");
+		await git("config", "user.name", "CI");
+		await git("config", "user.email", "ci@example.com");
+		writeFileSync(join(source, "flake.nix"), "{ outputs = { self }: {}; }\n");
+		await git("add", ".");
+		await git("commit", "-m", "base");
+		const parent = (await git("rev-parse", "HEAD")).stdout.trim();
+		writeFileSync(join(source, "other"), "head\n");
+		await git("add", ".");
+		await git("commit", "-m", "head");
+		await run(
+			[
+				"git",
+				"clone",
+				...(depth === 0 ? [] : [`--depth=${depth}`]),
+				`file://${source}`,
+				repository,
+			],
+			{ capture: true },
+		);
+		await run(
+			[
+				"git",
+				"-C",
+				repository,
+				"worktree",
+				"add",
+				"--detach",
+				worktree,
+				"HEAD",
+			],
+			{ capture: true },
+		);
+		const result = await run(
+			["git", "-C", worktree, "cat-file", "-e", parent],
+			{ capture: true, check: false },
+		);
+		assert.equal(
+			result.code,
+			0,
+			`Nix worktree cannot resolve its parent: ${result.stderr}`,
+		);
+		assert.equal(depth, 0);
+	} finally {
+		rmSync(directory, { force: true, recursive: true });
+	}
+});
+
+test("update pushes retry server failures without overwriting changed branches", async () => {
+	const directory = mkdtempSync(join(tmpdir(), "update-push-test-"));
+	const repository = join(directory, "work");
+	const remote = join(directory, "remote.git");
+	const attempts = join(directory, "attempts");
+	mkdirSync(repository);
+	const git = async (...args: string[]) =>
+		(
+			await run(["git", "-C", repository, ...args], {
+				capture: true,
+				env: { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+			})
+		).stdout.trim();
+	try {
+		await git("init", "--initial-branch=main");
+		await git("config", "user.name", "CI");
+		await git("config", "user.email", "ci@example.com");
+		await git("config", "commit.gpgsign", "false");
+		await git("config", "core.hooksPath", "/dev/null");
+		await run(["git", "init", "--bare", remote], { capture: true });
+		await git("remote", "add", "origin", remote);
+		writeFileSync(join(repository, "package"), "version 1\n");
+		await git("add", ".");
+		await git("commit", "-m", "base");
+		const base = await git("rev-parse", "HEAD");
+		const hook = join(remote, "hooks/pre-receive");
+		writeFileSync(
+			hook,
+			`#!/bin/sh\necho attempt >> '${attempts}'\nif [ "$(wc -l < '${attempts}')" -eq 1 ]; then\n  echo 'Internal Server Error' >&2\n  exit 1\nfi\ncat >/dev/null\n`,
+		);
+		chmodSync(hook, 0o755);
+		const uploadPack = join(directory, "upload-pack");
+		writeFileSync(
+			uploadPack,
+			'#!/bin/sh\necho "Service Unavailable" >&2\nexit 1\n',
+		);
+		chmodSync(uploadPack, 0o755);
+		await git("config", "remote.origin.uploadpack", uploadPack);
+		await pushUpdateBranch(repository, "update/foo", null);
+		await git("config", "--unset", "remote.origin.uploadpack");
+		assert.equal(readFileSync(attempts, "utf8").trim().split("\n").length, 2);
+		assert.equal(
+			(await git("ls-remote", "origin", "refs/heads/update/foo")).split(
+				/\s/,
+			)[0],
+			base,
+		);
+		writeFileSync(join(repository, "package"), "version 2\n");
+		await git("add", ".");
+		await git("commit", "-m", "update");
+		await pushUpdateBranch(repository, "update/foo", base);
+		const head = await git("rev-parse", "HEAD");
+		writeFileSync(join(repository, "package"), "version 3\n");
+		await git("add", ".");
+		await git("commit", "-m", "next update");
+		await assert.rejects(
+			pushUpdateBranch(repository, "update/foo", base),
+			/stale info/,
+		);
+		await git("checkout", "--detach", base);
+		await assert.rejects(
+			pushUpdateBranch(repository, "update/foo", null),
+			/stale info/,
+		);
+		assert.equal(
+			(await git("ls-remote", "origin", "refs/heads/update/foo")).split(
+				/\s/,
+			)[0],
+			head,
+		);
+		assert.equal(readFileSync(attempts, "utf8").trim().split("\n").length, 3);
+		writeFileSync(
+			hook,
+			`#!/bin/sh\necho attempt >> '${attempts}'\necho 'permission denied' >&2\nexit 1\n`,
+		);
+		await assert.rejects(
+			pushUpdateBranch(repository, "update/bar", null),
+			/permission denied/,
+		);
+		assert.equal(readFileSync(attempts, "utf8").trim().split("\n").length, 4);
+		writeFileSync(
+			hook,
+			`#!/bin/sh\necho attempt >> '${attempts}'\necho 'Internal Server Error' >&2\nexit 1\n`,
+		);
+		await assert.rejects(
+			pushUpdateBranch(repository, "update/bar", null),
+			/Internal Server Error/,
+		);
+		assert.equal(readFileSync(attempts, "utf8").trim().split("\n").length, 6);
+		rmSync(hook);
+		const receivePack = join(directory, "receive-pack");
+		writeFileSync(
+			receivePack,
+			`#!/bin/sh\necho attempt >> '${attempts}'\ngit-receive-pack "$@"\necho "Internal Server Error" >&2\nexit 1\n`,
+		);
+		chmodSync(receivePack, 0o755);
+		await git("config", "remote.origin.receivepack", receivePack);
+		await pushUpdateBranch(repository, "update/bar", null);
+		assert.equal(
+			(await git("ls-remote", "origin", "refs/heads/update/bar")).split(
+				/\s/,
+			)[0],
+			base,
+		);
+		assert.equal(readFileSync(attempts, "utf8").trim().split("\n").length, 7);
+	} finally {
+		rmSync(directory, { force: true, recursive: true });
+	}
 });
 
 test("update batch fails when any target fails", () => {
