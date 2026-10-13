@@ -5,16 +5,16 @@
 }:
 rustPlatform.buildRustPackage rec {
   pname = "longbridge-terminal";
-  version = "0.29.0";
+  version = "0.30.0";
 
   src = fetchFromGitHub {
     owner = "longbridge";
     repo = "longbridge-terminal";
     rev = "v${version}";
-    hash = "sha256-Rx47vez/rPbkzryVQz5AgvVf3OMb6PbxDW6SOQzrZNw=";
+    hash = "sha256-l9fHOSfeLGgTs0N/3vR74JgQVuNSMOFxsDEaV7KzaLM=";
   };
 
-  cargoHash = "sha256-JUqowCEAu8Iv7/b82FQToUOyrq33TIn7+izPhJLBHos=";
+  cargoHash = "sha256-FSlT3/TucgElN1hfknauuJCXLYGZirV/ZmKdgmeKYCY=";
 
   __darwinAllowLocalNetworking = true;
 
