@@ -8,11 +8,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "teamspeak6-client";
-  version = "6.0.0-beta4.1";
+  version = "6.0.0-beta5";
 
   src = fetchurl {
     url = "https://files.teamspeak-services.com/pre_releases/client/${finalAttrs.version}/teamspeak-client-arm.dmg";
-    hash = "sha256-cQf+X1JMLIwoCvf7Ff775B7PtcobbR/pSUNe1UFOfyc=";
+    hash = "sha256-hTbQhObDqj2x1KUebNtswTfCQ4LhXCdTXI+GEiiPxew=";
     # Cloudflare challenges plain curl/HTTP2; browser-like HTTP/1.1 works.
     curlOptsList = [
       "--http1.1"
