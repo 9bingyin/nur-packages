@@ -2,6 +2,8 @@
 
 隐私向 Chromium 浏览器。支持 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin`。包名 `helium-bin`。
 
+`helium-bin.unwrapped` 是去掉 Nix 启动 wrapper 的二进制包，对应 nixpkgs 里 Chromium 的 unwrapped 包。覆盖 `commandLineArgs` 只会重建 wrapper。
+
 Linux 使用 `imputnet/helium-linux` 的归档，macOS 使用 `imputnet/helium-macos` 的 DMG。两平台独立更新，版本可以不同。`sources.json` 保存版本和各架构哈希。
 
 Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 偏好，并跳过首次 `helium://setup`。
@@ -73,6 +75,6 @@ programs.helium = {
 };
 ```
 
-`commandLineArgs` 对 `helium` 命令和 Linux 桌面启动器生效。macOS 的 Finder、Dock、Spotlight 直接启动应用，不使用这些参数。
+`commandLineArgs` 对 `helium` 命令和 Linux 桌面启动器生效。macOS 的 Finder、Dock、Spotlight 直接启动应用，不使用这些参数。Home Manager 通过 `package.override { commandLineArgs = ...; }` 重建 wrapper，不会再包一层。自定义 `package` 必须接受这个参数。
 
 Linux 包含桌面文件、图标、GTK/Qt 集成和运行库。在 Wayland 会话中设置 `NIXOS_OZONE_WL=1` 可启用原生后端。

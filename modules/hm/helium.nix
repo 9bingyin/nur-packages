@@ -92,7 +92,10 @@ in
       type = types.package;
       default = pkgs.callPackage ../../packages/helium-bin/package.nix { };
       defaultText = literalExpression "pkgs.callPackage ../../packages/helium-bin/package.nix { }";
-      description = "The Helium package to install.";
+      description = ''
+        The Helium package to install.
+        It must accept a `commandLineArgs` override when that option is set.
+      '';
     };
 
     finalPackage = mkOption {
@@ -105,7 +108,10 @@ in
       type = types.listOf types.str;
       default = [ ];
       example = [ "--helium-update-channel=beta" ];
-      description = "Command-line arguments passed to Helium on every launch.";
+      description = ''
+        Command-line arguments passed to Helium on every launch.
+        Applied by overriding the package's `commandLineArgs`, which only rebuilds the wrapper.
+      '';
     };
 
     profileDirectory = mkOption {
@@ -202,25 +208,8 @@ in
       if cfg.commandLineArgs == [ ] then
         cfg.package
       else
-        pkgs.symlinkJoin {
-          name = "${(builtins.parseDrvName cfg.package.name).name}-wrapped";
-          paths = [ cfg.package ];
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-          postBuild = ''
-            rm -f "$out/bin/helium"
-            makeWrapper \
-              "${lib.getExe cfg.package}" \
-              "$out/bin/helium" \
-              --add-flags ${lib.escapeShellArg (lib.escapeShellArgs cfg.commandLineArgs)}
-            ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-              if [ -f "$out/share/applications/helium.desktop" ]; then
-                cp --remove-destination "${cfg.package}/share/applications/helium.desktop" \
-                  "$out/share/applications/helium.desktop"
-                sed -i "s#^Exec=[^ ]*#Exec=$out/bin/helium#" \
-                  "$out/share/applications/helium.desktop"
-              fi
-            ''}
-          '';
+        cfg.package.override {
+          commandLineArgs = lib.escapeShellArgs cfg.commandLineArgs;
         };
 
     home.packages = [ cfg.finalPackage ];
