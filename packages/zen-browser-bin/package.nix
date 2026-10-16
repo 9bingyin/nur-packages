@@ -8,11 +8,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "zen-browser-bin";
-  version = "1.23.3b";
+  version = "1.23.2b";
 
   src = fetchurl {
     url = "https://github.com/zen-browser/desktop/releases/download/${finalAttrs.version}/zen.macos-universal.dmg";
-    hash = "sha256-zih/5qskJQLWfVO8/syNvfoXOPcmHJsj66834m6O/p4=";
+    hash = "sha256-l1SMgSPTHIEj8JdiG0fmuZzetXqLo8KbeQ3QZRV/HZ4=";
   };
 
   sourceRoot = ".";
