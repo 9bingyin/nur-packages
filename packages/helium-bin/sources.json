@@ -7,9 +7,9 @@
     }
   },
   "darwin": {
-    "version": "0.19.3.1",
+    "version": "0.19.4.1",
     "hashes": {
-      "aarch64-darwin": "sha256-ugwwxIPubEbkj/wjmuaysIR6/etU60puoxZlBUpS0Vk="
+      "aarch64-darwin": "sha256-Ew5DEAjyXe2dUiEL36hmsKzlnQTNqv8Hx3kx+9f5MyE="
     }
   }
 }
