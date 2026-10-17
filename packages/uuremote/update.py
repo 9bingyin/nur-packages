@@ -47,8 +47,8 @@ def latest_release() -> tuple[str, str]:
     if match is None:
         raise RuntimeError(f"Could not parse UU Remote version from {location!r}")
     version = match.group(1)
-    # Drop signed query parameters; the CDN accepts the plain artifact URL.
-    pkg_url = f"https://a56.gdl.netease.com/uuyc_{version}.pkg"
+    # Homebrew cask URL drops the signed query and uses the _nochannel artifact.
+    pkg_url = f"https://a56.gdl.netease.com/uuyc_{version}_nochannel.pkg"
     return version, pkg_url
 
 
