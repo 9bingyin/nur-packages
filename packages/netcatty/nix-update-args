@@ -1,0 +1,3 @@
+# Adjust the regex if upstream changes its vX.Y.Z release tag scheme.
+--version-regex=^v([0-9]+\.[0-9]+\.[0-9]+)$
+--use-github-releases

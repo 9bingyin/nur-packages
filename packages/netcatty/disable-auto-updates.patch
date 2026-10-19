@@ -1,0 +1,24 @@
+diff --git a/electron/bridges/autoUpdateBridge.cjs b/electron/bridges/autoUpdateBridge.cjs
+index b7e24430eabdd6a35d3623a4954e6e8ccc5cc3ac..a58127b6f228f1917f0e01c37f6f0b5203439a59 100644
+--- a/electron/bridges/autoUpdateBridge.cjs
++++ b/electron/bridges/autoUpdateBridge.cjs
+@@ -73,10 +73,7 @@ function getLinuxPackageType() {
+  * (macOS zip/dmg, Windows NSIS, Linux AppImage/deb/rpm/pacman).
+  */
+ function isAutoUpdateSupported() {
+-  if (process.platform === "darwin" || process.platform === "win32") {
+-    return true;
+-  }
+-  return process.platform === "linux" && getLinuxPackageType() !== null;
++  return false;
+ }
+ 
+ /** Lazily resolved autoUpdater — avoids importing electron-updater in
+@@ -102,6 +99,7 @@ let _isChecking = false;
+  */
+ let _lastStatus = { status: 'idle', percent: 0, error: null, version: null, isChecking: false };
+ function getAutoUpdater() {
++  if (!isAutoUpdateSupported()) return null;
+   if (_autoUpdater) return _autoUpdater;
+   try {
+     const { autoUpdater } = require("electron-updater");
