@@ -46,7 +46,7 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
 
-  passthru.updateScript = ./update.py;
+  passthru.updateScript = ./update.ts;
 
   meta = {
     description = "Cross-platform SSH client with cloud data sync and more";

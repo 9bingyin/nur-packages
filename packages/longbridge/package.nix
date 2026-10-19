@@ -131,7 +131,7 @@ stdenv.mkDerivation {
         runHook postInstall
       '';
 
-  passthru.updateScript = ./update.py;
+  passthru.updateScript = ./update.ts;
 
   meta = with lib; {
     description = "Professional trading platform for stocks and financial instruments";

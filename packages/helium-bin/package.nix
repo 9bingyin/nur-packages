@@ -111,7 +111,7 @@ stdenv.mkDerivation {
   passthru = {
     inherit unwrapped;
     updateScript = {
-      command = [ ./update.py ];
+      command = [ ./update.ts ];
       supportedFeatures = [
         "commit"
         "same-version"

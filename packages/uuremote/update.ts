@@ -10,7 +10,7 @@ import process from "node:process";
 const LIVECHECK_URL =
 	"https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd";
 const PACKAGE_PATH = join(import.meta.dir, "package.nix");
-const USER_AGENT = "9bingyin-nur-packages-updater";
+const USER_AGENT = "nur-packages (+https://github.com/9bingyin/nur-packages)";
 const VERSION_RE = /^[0-9]+(?:\.[0-9]+)+$/;
 const PKG_URL_RE = /uuyc[._-]v?(\d+(?:\.\d+)+)\.pkg/i;
 

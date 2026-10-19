@@ -11,7 +11,7 @@ const ASSET_NAME = "Zed-aarch64.dmg";
 const RELEASE_URL =
 	"https://cloud.zed.dev/releases/stable/latest/asset?os=macos&arch=aarch64&asset=zed";
 const PACKAGE_PATH = join(import.meta.dir, "package.nix");
-const USER_AGENT = "9bingyin-nur-packages-updater";
+const USER_AGENT = "nur-packages (+https://github.com/9bingyin/nur-packages)";
 const VERSION_RE = /^[0-9]+(?:\.[0-9]+)+$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {

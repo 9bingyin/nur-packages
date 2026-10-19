@@ -1,4 +1,7 @@
-#!/usr/bin/env bun
+#!/usr/bin/env nix
+/*
+#!nix shell nixpkgs#bun --command bun
+*/
 /** Update Grok Bot (aarch64-darwin) from Cursor's stable update feed. */
 
 import { join } from "node:path";
@@ -8,7 +11,7 @@ const ARCH = "darwin-arm64";
 const FEED_URL = `https://api2.cursor.sh/updates/api/update/${ARCH}/sand/0.0.1/stable`;
 const DOWNLOAD_BASE = "https://downloads.cursor.com/grokbot/stable";
 const PACKAGE_PATH = join(import.meta.dir, "package.nix");
-const USER_AGENT = "9bingyin-nur-packages-updater";
+const USER_AGENT = "nur-packages (+https://github.com/9bingyin/nur-packages)";
 const VERSION_RE = /^[0-9]+(?:\.[0-9]+)+$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -28,7 +31,13 @@ function run(command: readonly string[], capture = false): string {
 			`Command failed with exit code ${result.exitCode}: ${command.join(" ")}`,
 		);
 	}
-	return capture ? result.stdout.toString() : "";
+	if (!capture) {
+		return "";
+	}
+	if (result.stdout === undefined) {
+		throw new Error(`Command produced no stdout: ${command.join(" ")}`);
+	}
+	return result.stdout.toString();
 }
 
 async function latestRelease(): Promise<readonly [string, string]> {

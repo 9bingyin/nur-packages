@@ -130,7 +130,7 @@ stdenvNoCC.mkDerivation {
 
   passthru = {
     updateScript = {
-      command = ./update.py;
+      command = ./update.ts;
       supportedFeatures = [
         "commit"
         "same-version"
