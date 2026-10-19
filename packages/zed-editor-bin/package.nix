@@ -10,7 +10,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   version = "1.24.2";
 
   src = fetchurl {
-    url = "https://github.com/zed-industries/zed/releases/download/v${finalAttrs.version}/Zed-aarch64.dmg";
+    url = "https://zed.dev/api/releases/stable/${finalAttrs.version}/Zed-aarch64.dmg";
     hash = "sha256-XRIH97pnaWP4u6N9oAKZfYhM2+yMXEdwIhD6URARGxk=";
   };
 
@@ -36,6 +36,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     runHook postInstall
   '';
+
+  passthru.updateScript = ./update.ts;
 
   meta = {
     description = "High-performance, multiplayer code editor from the creators of Atom and Tree-sitter";
