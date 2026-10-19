@@ -90,11 +90,12 @@ function replaceOnce(
 	replacement: string,
 	error: string,
 ): string {
-	const updated = text.replace(new RegExp(pattern, "m"), replacement);
-	if (updated === text) {
+	const expression = new RegExp(pattern, "m");
+	if (expression.exec(text) === null) {
 		throw new Error(error);
 	}
-	return updated;
+	expression.lastIndex = 0;
+	return text.replace(expression, replacement);
 }
 
 function currentVersion(packageText: string): string {
