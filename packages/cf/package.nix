@@ -77,7 +77,7 @@ stdenv.mkDerivation (finalAttrs: {
     runHook preBuild
 
     # The release already contains generated API commands; regeneration needs network access.
-    NODE_ENV=production pnpm --filter cf exec vp pack
+    NODE_ENV=production pnpm --filter cf exec node node_modules/vite-plus/bin/vp pack
 
     runHook postBuild
   '';
@@ -95,7 +95,7 @@ stdenv.mkDerivation (finalAttrs: {
       --replace-fail '#!/usr/bin/env node' '#!${lib.getExe nodejs}'
     export SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
     # This integration test needs the separately installed Wrangler fixture workspace.
-    pnpm --filter cf exec vp test run \
+    pnpm --filter cf exec node node_modules/vite-plus/bin/vp test run \
       --testNamePattern='^(?!.*builds and profiles a Worker from cloudflare.config.ts)'
 
     runHook postCheck
