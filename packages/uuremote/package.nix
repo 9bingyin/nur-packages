@@ -10,11 +10,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "uuremote";
-  version = "4.43.1";
+  version = "4.44.0";
 
   src = fetchurl {
     url = "https://a56.gdl.netease.com/uuyc_${finalAttrs.version}_nochannel.pkg";
-    hash = "sha256-ZsTiWXyS+olBXyoP+yGo5Yzboy08mATZLPYOGQozj8E=";
+    hash = "sha256-3DscIKExLWp4rvS8lmS6tY/A65PXZCva21zG0/ZiJYU=";
   };
 
   nativeBuildInputs = [
