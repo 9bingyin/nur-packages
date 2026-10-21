@@ -1,0 +1,3 @@
+--version=unstable
+--version-regex=^cf@(.*)$
+--use-github-releases
