@@ -85,6 +85,11 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck = true;
   __darwinAllowLocalNetworking = true;
 
+  # Native fs.watch can exhaust file descriptors in the Darwin sandbox.
+  preCheck = lib.optionalString stdenv.hostPlatform.isDarwin ''
+    export CHOKIDAR_USEPOLLING=true
+  '';
+
   checkPhase = ''
     runHook preCheck
 
