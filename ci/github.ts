@@ -42,7 +42,7 @@ export async function githubRequestPages(
 	path: string,
 ): Promise<readonly unknown[]> {
 	const items: unknown[] = [];
-	for (let page = 1; page <= 100; page += 1) {
+	for (let page = 1; ; page += 1) {
 		const separator = path.includes("?") ? "&" : "?";
 		const response = await githubRequest(
 			`${path}${separator}per_page=100&page=${page}`,
@@ -55,7 +55,6 @@ export async function githubRequestPages(
 			return items;
 		}
 	}
-	throw new Error(`GitHub API pagination exceeded 100 pages for ${path}`);
 }
 
 export function githubRepository(): string {

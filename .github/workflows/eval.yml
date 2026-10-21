@@ -46,7 +46,6 @@ defaults:
 jobs:
   misc:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -78,7 +77,6 @@ jobs:
   eval:
     name: ${{ matrix.system }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     permissions:
       contents: read
     strategy:
@@ -129,7 +127,6 @@ jobs:
   compare:
     needs: eval
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     permissions:
       contents: read
     steps:

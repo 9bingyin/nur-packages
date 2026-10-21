@@ -120,8 +120,6 @@ export type UpdateManifest = Readonly<{
 
 const UPDATE_MANIFEST = "manifest.json";
 const UPDATE_PATCH = "changes.patch";
-const MAX_CHANGED_FILES = 50;
-const MAX_PATCH_BYTES = 5 * 1024 * 1024;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const TARGET_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9+._-]*$/;
 
@@ -546,9 +544,6 @@ export function validateChangedFiles(
 	if (files.length === 0) {
 		throw new Error("The update patch has no changed files");
 	}
-	if (files.length > MAX_CHANGED_FILES) {
-		throw new Error(`The update changes too many files: ${files.length}`);
-	}
 	for (const file of files) {
 		if (!pathAllowed(updateType, name, file.path)) {
 			throw new Error(`Update target ${name} cannot modify ${file.path}`);
@@ -794,9 +789,6 @@ export async function prepareUpdate(): Promise<void> {
 			{ capture: true },
 		)
 	).stdout;
-	if (Buffer.byteLength(patch) > MAX_PATCH_BYTES) {
-		throw new Error(`Update patch exceeds ${MAX_PATCH_BYTES} bytes`);
-	}
 	writeUpdateArtifact(
 		directory,
 		{

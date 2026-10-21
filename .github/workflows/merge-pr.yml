@@ -21,7 +21,6 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request_target'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       actions: read
       contents: read
@@ -70,7 +69,6 @@ jobs:
     needs: policy
     if: needs.policy.outputs.mode == 'auto'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     permissions:
       contents: read
     steps:

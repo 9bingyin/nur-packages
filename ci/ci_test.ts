@@ -23,7 +23,8 @@ import {
 	markdownSummary,
 	parsePackageSet,
 } from "./eval-packages.ts";
-import { parseSystems, requireRecord, run } from "./lib.ts";
+import { githubRequestPages } from "./github.ts";
+import { parseJson, parseSystems, requireRecord, run } from "./lib.ts";
 import { pullRequestMatchesMerge } from "./merge.ts";
 import {
 	dependabotDiffAllowed,
@@ -84,6 +85,36 @@ test("parseSystems validates systems and runners", () => {
 		parseSystems([{ runner: "ubuntu-latest", system: "x86_64-linux" }]),
 		[{ runner: "ubuntu-latest", system: "x86_64-linux" }],
 	);
+});
+
+test("GitHub pagination reads beyond 100 pages", async () => {
+	const originalFetch = globalThis.fetch;
+	const originalToken = process.env.GH_TOKEN;
+	process.env.GH_TOKEN = "test-token";
+	let requests = 0;
+	globalThis.fetch = Object.assign(
+		async (input: string | URL | Request) => {
+			const url = new URL(input instanceof Request ? input.url : input);
+			const page = Number(url.searchParams.get("page"));
+			assert.equal(page, ++requests);
+			assert.equal(url.searchParams.get("per_page"), "100");
+			assert.equal(url.searchParams.get("state"), "open");
+			return Response.json(
+				Array.from({ length: page <= 101 ? 100 : 1 }, () => page),
+			);
+		},
+		{ preconnect: originalFetch.preconnect },
+	);
+	try {
+		const items = await githubRequestPages("/items?state=open");
+		assert.equal(requests, 102);
+		assert.equal(items.length, 10_101);
+		assert.equal(items.at(-1), 102);
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (originalToken === undefined) delete process.env.GH_TOKEN;
+		else process.env.GH_TOKEN = originalToken;
+	}
 });
 
 test("prepare validates the test merge parents", () => {
@@ -594,6 +625,94 @@ test("update patches stay inside the selected package", () => {
 	);
 	validateChangedFiles("package", "foo", files);
 	assert.throws(() => validateChangedFiles("package", "bar", files));
+});
+
+test("large update file sets retain path and file mode validation", () => {
+	const files = parseRawDiff(
+		Array.from(
+			{ length: 51 },
+			(_, index) =>
+				`:100644 100644 1111111 2222222 M\0packages/foo/file-${index}.nix\0`,
+		).join(""),
+	);
+	assert.doesNotThrow(() => validateChangedFiles("package", "foo", files));
+	assert.throws(() => validateChangedFiles("package", "bar", files));
+	const unsafeFiles = parseRawDiff(
+		":000000 120000 0000000 2222222 A\0packages/foo/link\0",
+	);
+	assert.throws(() =>
+		validateChangedFiles("package", "foo", [...files, ...unsafeFiles]),
+	);
+});
+
+test("update preparation accepts patches larger than 5 MiB", async () => {
+	const directory = mkdtempSync(join(tmpdir(), "large-update-test-"));
+	const repository = join(directory, "repository");
+	const bin = join(directory, "bin");
+	const artifact = join(directory, "artifact");
+	mkdirSync(repository);
+	mkdirSync(bin);
+	const git = (...args: string[]) =>
+		run(["git", ...args], { cwd: repository, capture: true });
+	try {
+		await git("init");
+		writeFileSync(
+			join(repository, "flake.lock"),
+			JSON.stringify({ nodes: { nixpkgs: { locked: { rev: "old" } } } }),
+		);
+		await git("add", ".");
+		await git(
+			"-c",
+			"user.name=CI",
+			"-c",
+			"user.email=ci@example.com",
+			"commit",
+			"-m",
+			"base",
+		);
+		const nix = join(bin, "nix");
+		writeFileSync(
+			nix,
+			`#!${process.execPath}\n` +
+				`await Bun.write("flake.lock", JSON.stringify({ nodes: { nixpkgs: { locked: { rev: "new" } } }, padding: "x".repeat(5 * 1024 * 1024) }));\n`,
+		);
+		chmodSync(nix, 0o755);
+		await run(
+			[
+				process.execPath,
+				new URL("./main.ts", import.meta.url).pathname,
+				"prepare-update",
+			],
+			{
+				cwd: repository,
+				capture: true,
+				env: {
+					PATH: `${bin}:${process.env.PATH}`,
+					UPDATE_TYPE: "flake-input",
+					UPDATE_TARGET: JSON.stringify({
+						name: "nixpkgs",
+						current_version: "old",
+					}),
+					UPDATE_ARTIFACT_DIR: artifact,
+					GITHUB_RUN_ATTEMPT: "1",
+					GITHUB_RUN_ID: "1",
+				},
+			},
+		);
+		assert.ok(
+			readFileSync(join(artifact, "changes.patch")).length > 5 * 1024 * 1024,
+		);
+		const manifest = requireRecord(
+			parseJson(
+				readFileSync(join(artifact, "manifest.json"), "utf8"),
+				"manifest",
+			),
+			"manifest",
+		);
+		assert.equal(manifest.newVersion, "new");
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
 });
 
 test("update protocol accepts nixpkgs updateScript metadata", () => {
