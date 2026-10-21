@@ -38,6 +38,11 @@ stdenv.mkDerivation (finalAttrs: {
     inherit pnpm;
     fetcherVersion = 4;
     hash = "sha256-MDn+N4xoe6gcYP+OkuwpBjunkAjIYstWE+jecFOgzPE=";
+
+    # Normalize Darwin's empty links directory: https://github.com/NixOS/nixpkgs/pull/575633.
+    preFixup = ''
+      rm -rf "$storePath"/{v3,v10,v11}/links
+    '';
   };
 
   pnpmWorkspaces = [ "cf" ];
