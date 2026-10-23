@@ -18,13 +18,13 @@
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "cf";
-  version = "1.0.0-beta.20";
+  version = "1.0.0-beta.21";
 
   src = fetchFromGitHub {
     owner = "cloudflare";
     repo = "cf";
     tag = "cf@${finalAttrs.version}";
-    hash = "sha256-t9hazxYXRBNjdQNDVYzUx91tewOWse9NG5IGnsewDJk=";
+    hash = "sha256-KlNsEzd4dxNBKUtcD8XiFLbAbOluq6PB5vB+pRcJ+mo=";
   };
 
   pnpmDeps = fetchPnpmDeps {
@@ -37,7 +37,7 @@ stdenv.mkDerivation (finalAttrs: {
       ;
     inherit pnpm;
     fetcherVersion = 4;
-    hash = "sha256-MDn+N4xoe6gcYP+OkuwpBjunkAjIYstWE+jecFOgzPE=";
+    hash = "sha256-+AIVKXMs2J62/VrwdMqqIGBjjvlXq2xAY02POQRSne0=";
 
     # Normalize Darwin's empty links directory: https://github.com/NixOS/nixpkgs/pull/575633.
     preFixup = ''
