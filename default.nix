@@ -12,6 +12,7 @@ in
 {
   nixosModules = {
     usque = ./modules/nixos/usque.nix;
+    vocat = ./modules/nixos/vocat.nix;
   };
   homeModules = {
     helium = ./modules/hm/helium.nix;

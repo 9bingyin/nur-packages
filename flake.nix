@@ -55,6 +55,12 @@
                 inherit pkgs;
                 packages = config.packages;
               };
+            }
+            // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+              vocat = import ./checks/vocat.nix {
+                inherit pkgs;
+                package = nur.vocat;
+              };
             };
 
             treefmt = {
@@ -93,6 +99,7 @@
 
           nixosModules = {
             usque = import ./modules/nixos/usque.nix;
+            vocat = import ./modules/nixos/vocat.nix;
           };
 
           homeModules = {
