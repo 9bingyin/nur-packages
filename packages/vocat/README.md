@@ -34,3 +34,7 @@
 | `initialAdminPasswordFile` | `null` | 初始密码文件；不设置时需手工初始化管理员 |
 | `enablePCSC` | `false` | 为 USB SIM 读卡器启用 `pcscd` |
 | `environment` | `{}` | 附加环境变量，不要放秘密，不能覆盖模块管理的配置和数据库路径 |
+
+## 注意事项
+
+- 服务内的 sysfs 只读，不影响其他系统服务。QMI Raw-IP 切换、USB 重新授权和驱动重绑需在服务外处理。
