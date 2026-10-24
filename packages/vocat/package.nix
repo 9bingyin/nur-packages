@@ -13,13 +13,13 @@
 }:
 buildGoModule (finalAttrs: {
   pname = "vocat";
-  version = "0.3.28";
+  version = "0.3.31";
 
   src = fetchFromGitHub {
     owner = "MengMengCode";
     repo = "VoCat";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-yDnJCXUnF6I2B31ZWu+WQyMxMOFcm/XV34YQAMwm1kk=";
+    hash = "sha256-JX800tUMtkHnKKEGUB0huyOU2cIpbDvOzMe6bm5YddI=";
   };
 
   vendorHash = "sha256-icnpbcQ9jm3C0KwpwCsux7QOivuYHNJv71n20I8RU6U=";
@@ -74,7 +74,7 @@ buildGoModule (finalAttrs: {
       pname = "vocat-web";
       inherit (finalAttrs) version src;
       sourceRoot = "${finalAttrs.src.name}/web";
-      npmDepsHash = "sha256-OXwF6gzN0zcsDvG1YjpCjy5rAo8I9QJQlzIHffBJ24Q=";
+      npmDepsHash = "sha256-5If4zKpToyxsWj8AKW+UJeTB+CiZu5ledtDNOdHrCZs=";
       doCheck = true;
       checkPhase = ''
         runHook preCheck
