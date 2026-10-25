@@ -8,11 +8,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "macusb-bin";
-  version = "2.5";
+  version = "2.6";
 
   src = fetchurl {
     url = "https://github.com/Kruszoneq/macUSB/releases/download/v${finalAttrs.version}/macUSB.${finalAttrs.version}.dmg";
-    hash = "sha256-rsAhde0etW0ZZjScP65mMmX4uvvSv+Mo60aisLrGcxw=";
+    hash = "sha256-Lki8XTFthZqnRCn0cVAXJufcy0/8tOOrHjbW+n3v4lQ=";
   };
 
   sourceRoot = ".";
