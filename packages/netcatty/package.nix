@@ -15,13 +15,13 @@
 }:
 buildNpmPackage (finalAttrs: {
   pname = "netcatty";
-  version = "1.1.89";
+  version = "1.1.90";
 
   src = fetchFromGitHub {
     owner = "binaricat";
     repo = "Netcatty";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-F/ZdTiCPzGmu2cn9Y87G6jZnD3tTkZJ+DU1h4eLv2m0=";
+    hash = "sha256-S8EEi3R5aJt/XCBwvs9LCIiTRY+1tjhAm+DeYbLoLAA=";
   };
 
   # Nix owns updates. Refresh this git-generated patch if the upstream update
