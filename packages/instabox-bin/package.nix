@@ -20,11 +20,11 @@ let
 in
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "instabox-bin";
-  version = "0.8.36";
+  version = "0.8.41";
 
   src = fetchurl {
     url = "https://registry.npmjs.org/instabox/-/instabox-${finalAttrs.version}.tgz";
-    hash = "sha256-ZJXFu1QvmBdPwprVGbTogZEh2AGOM7rt9iDfvmX1DWw=";
+    hash = "sha256-tzNWB0t7MGJxSXqGBL1VTbxonTnd+ZGbXNrILTunDN0=";
   };
 
   nativeBuildInputs = [
