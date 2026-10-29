@@ -7,17 +7,17 @@
 }:
 buildGoModule (finalAttrs: {
   pname = "dae";
-  version = "1.1.0-unstable-2026-08-19";
+  version = "1.1.0-unstable-2026-10-29";
 
   src = fetchFromGitHub {
     owner = "9bingyin";
     repo = "dae";
-    rev = "70273b05fe92bc4f9a36bfe01486f47c31c9c723";
-    hash = "sha256-LoRbeRVOwnd90472pkanQSFGMKB0XxJ3w3doDPmUZUc=";
+    rev = "57416b16502401e0338f05b6a5c4cde911cedddf";
+    hash = "sha256-vbSkxZOgXkpKMTxRzX2WPJoTeTsMK8wuEiJVJzx1mMU=";
     fetchSubmodules = true;
   };
 
-  vendorHash = "sha256-Iwhj0kQLO+SIH8vTFd+UFlJRL9qfmt+TUc1LZgfsa9w=";
+  vendorHash = "sha256-j3UxAKzg9XpVOpqhesiHlDNW6O9YRQWTP1uQlzIWg20=";
   proxyVendor = true;
 
   nativeBuildInputs = [ clang ];
