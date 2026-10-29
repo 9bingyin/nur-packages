@@ -12,8 +12,8 @@ buildGoModule (finalAttrs: {
   src = fetchFromGitHub {
     owner = "9bingyin";
     repo = "dae";
-    rev = "57416b16502401e0338f05b6a5c4cde911cedddf";
-    hash = "sha256-vbSkxZOgXkpKMTxRzX2WPJoTeTsMK8wuEiJVJzx1mMU=";
+    rev = "271cc81739c7e563c3b15c36ea69cb0ca57a010a";
+    hash = "sha256-2VWfZph02ZcltwReN7wwIEJcyQFezv59bHBdookqub8=";
     fetchSubmodules = true;
   };
 
