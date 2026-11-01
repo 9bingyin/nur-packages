@@ -34,6 +34,8 @@ buildGoModule rec {
     fi
   '';
 
+  __darwinAllowLocalNetworking = true;
+
   preCheck = ''
     export HOME=$TMPDIR
     unset CGO_ENABLED
