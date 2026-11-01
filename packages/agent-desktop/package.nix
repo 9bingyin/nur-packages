@@ -132,11 +132,9 @@ rustPlatform.buildRustPackage (finalAttrs: {
   ];
 
   preCheck = ''
-    export HOME=$(mktemp -d)
-  ''
-  + lib.optionalString stdenv.hostPlatform.isLinux ''
-    # D-Bus fixtures must stay below the Unix socket path length limit.
+    # Keep socket paths short and helper fixtures outside untrusted /nix ancestors.
     export TMPDIR=$(mktemp -d /tmp/ad.XXXXXX)
+    export HOME=$(mktemp -d)
   '';
 
   postInstall = lib.optionalString stdenv.hostPlatform.isLinux ''
