@@ -1,0 +1,16 @@
+diff --git a/scripts/private-session.sh b/scripts/private-session.sh
+index 2385e3639beebe34f69e4fac2e3ed92fb484c1e1..1f2a74e552e62628bf30c741e8c6166d9883ec50 100755
+--- a/scripts/private-session.sh
++++ b/scripts/private-session.sh
+@@ -75,8 +75,10 @@ session_signal() {
+ cleanup() {
+   local pid start mount
+   trap '' INT TERM HUP
++  # Xvfb can be non-dumpable, so /proc/$pid/environ is not always readable.
++  # These PIDs are our own children, unlike the discovered session members.
+   for pid in "${pids[@]}"; do
+-    session_signal "$pid" "$(process_start "$pid")" TERM
++    kill -TERM "$pid" 2>/dev/null || true
+   done
+   while read -r pid start; do session_signal "$pid" "$start" TERM; done < <(session_members)
+   sleep 1

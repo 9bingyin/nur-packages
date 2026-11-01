@@ -1,0 +1,22 @@
+diff --git a/crates/macos/src/input/clipboard/clipboard_helper_identity.rs b/crates/macos/src/input/clipboard/clipboard_helper_identity.rs
+index 469324e75234420ec4e1409b1b827259e88344d0..fb4606066a280b2c93a1280fad690e7a505045ea 100644
+--- a/crates/macos/src/input/clipboard/clipboard_helper_identity.rs
++++ b/crates/macos/src/input/clipboard/clipboard_helper_identity.rs
+@@ -88,11 +88,15 @@ impl HelperIdentity {
+             )
+         })?;
+         let mode = metadata.mode();
++        // Nix store helpers are root-owned, read-only and may be hard-linked.
++        let is_nix_store_helper = path == std::path::Path::new("@helperPath@")
++            && metadata.uid() == 0
++            && mode & 0o222 == 0;
+         if !metadata.file_type().is_file()
+-            || metadata.uid() != unsafe { libc::geteuid() }
+             || mode & 0o022 != 0
+             || mode & 0o111 == 0
+-            || metadata.nlink() != 1
++            || (!is_nix_store_helper
++                && (metadata.uid() != unsafe { libc::geteuid() } || metadata.nlink() != 1))
+         {
+             return Err(invalid(
+                 "Helper must be an owner-matched, executable, single-link regular file with no group/world writes",
