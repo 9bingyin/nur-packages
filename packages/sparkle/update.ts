@@ -100,12 +100,12 @@ function serviceChange(
 ): readonly [string, string] {
   if (oldVersion === newVersion) {
     return [
-      `sparkle: refresh sparkle-service ${newVersion}`,
+      'sparkle.sparkle-service: refresh',
       `Refresh bundled \`sparkle-service\` at \`${newVersion}\`.`,
     ]
   }
   return [
-    `sparkle: update sparkle-service ${oldVersion} -> ${newVersion}`,
+    `sparkle.sparkle-service: ${oldVersion} -> ${newVersion}`,
     `Update bundled \`sparkle-service\` from \`${oldVersion}\` to \`${newVersion}\`.`,
   ]
 }

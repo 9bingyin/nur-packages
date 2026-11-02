@@ -153,7 +153,11 @@ function prefetchSriHash(url: string): string {
 
 async function updatePackage(): Promise<readonly CommitChange[]> {
   const sources = parseSources(await Bun.file(SOURCES_PATH).json())
-  const changes: string[] = []
+  const changes: {
+    newVersion: string
+    oldVersion: string
+    platform: Platform
+  }[] = []
   for (const platform of Object.keys(PLATFORMS) as Platform[]) {
     const { assets, repository } = PLATFORMS[platform]
     const version = await latestRelease(repository)
@@ -166,14 +170,43 @@ async function updatePackage(): Promise<readonly CommitChange[]> {
       hashes[system] = prefetchSriHash(assetUrl(repository, version, suffix))
     }
     sources[platform] = { hashes, version }
-    const label = platform === 'darwin' ? 'macos' : 'linux'
-    changes.push(`${label} ${current.version} -> ${version}`)
+    changes.push({
+      newVersion: version,
+      oldVersion: current.version,
+      platform,
+    })
   }
   if (changes.length === 0) {
     return []
   }
   await Bun.write(SOURCES_PATH, `${JSON.stringify(sources, null, 2)}\n`)
-  return [{ commitMessage: `helium-bin: ${changes.join('; ')}` }]
+  return [{ commitMessage: heliumTitle(changes) }]
+}
+
+function heliumTitle(
+  changes: readonly {
+    newVersion: string
+    oldVersion: string
+    platform: Platform
+  }[],
+): string {
+  const [first] = changes
+  if (first === undefined) {
+    throw new Error('helium-bin update produced no changes')
+  }
+  const sameVersion = changes.every(
+    (change) =>
+      change.oldVersion === first.oldVersion &&
+      change.newVersion === first.newVersion,
+  )
+  if (sameVersion) {
+    return `helium-bin: ${first.oldVersion} -> ${first.newVersion}`
+  }
+  const parts = changes.map(
+    (change) =>
+      `${change.platform} ${change.oldVersion} -> ${change.newVersion}`,
+  )
+  return `helium-bin: ${parts.join(', ')}`
 }
 
 async function main(): Promise<void> {
