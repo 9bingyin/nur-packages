@@ -1,6 +1,6 @@
 #!/usr/bin/env nix
 /*
-#!nix shell nixpkgs#bun --command bun
+#! nix shell --inputs-from . nixpkgs#bun --command bun
 */
 /** Update Helium's Linux and macOS releases independently. */
 

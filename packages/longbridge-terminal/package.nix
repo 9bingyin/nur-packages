@@ -2,6 +2,7 @@
   lib,
   rustPlatform,
   fetchFromGitHub,
+  nix-update-script,
 }:
 rustPlatform.buildRustPackage rec {
   pname = "longbridge-terminal";
@@ -26,6 +27,10 @@ rustPlatform.buildRustPackage rec {
     # Upstream expects the debug-only /debug command in a release-profile test.
     "--skip=ai::tui::tests::every_name_and_alias_resolves"
   ];
+
+  passthru.updateScript = nix-update-script {
+    extraArgs = [ "--use-github-releases" ];
+  };
 
   meta = with lib; {
     description = "AI-native CLI for the Longbridge trading platform";

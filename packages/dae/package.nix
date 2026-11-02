@@ -4,6 +4,7 @@
   clang,
   fetchFromGitHub,
   versionCheckHook,
+  nix-update-script,
 }:
 buildGoModule (finalAttrs: {
   pname = "dae";
@@ -46,6 +47,14 @@ buildGoModule (finalAttrs: {
 
   nativeInstallCheckInputs = [ versionCheckHook ];
   doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script {
+    # 只使用稳定标签作为快照版本基数，并去掉标签的 v 前缀。
+    extraArgs = [
+      "--version=branch=legacy"
+      ''--version-regex=^v([0-9]+(?:\.[0-9]+)+-unstable-[0-9]{4}-[0-9]{2}-[0-9]{2})$''
+    ];
+  };
 
   meta = {
     description = "Fork of dae, a Linux high-performance transparent proxy solution based on eBPF";

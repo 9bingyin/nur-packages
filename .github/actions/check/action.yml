@@ -1,0 +1,38 @@
+name: Check
+description: Format, evaluate, and check update diffs
+inputs:
+  base_sha:
+    description: Base commit of the diff
+    required: true
+  head_ref:
+    description: Head branch
+    required: true
+  head_sha:
+    description: Head commit of the diff
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Lint
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        set -euo pipefail
+        formatter="$(nix build --no-link --no-write-lock-file --print-out-paths .#formatter.x86_64-linux)"
+        "$formatter/bin/treefmt" --ci
+        while IFS= read -r -d '' file; do
+          echo "parsing $file"
+          nix-instantiate --parse "$file" >/dev/null
+        done < <(find . \( -path ./.git -o -path ./node_modules -o -path ./result -o -path './result-*' \) -prune -o -type f -name '*.nix' -print0 | sort -z)
+    - name: Eval
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: nix flake check --all-systems --no-build --no-write-lock-file
+    - name: Diff
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        BASE_SHA: ${{ inputs.base_sha }}
+        HEAD_REF: ${{ inputs.head_ref }}
+        HEAD_SHA: ${{ inputs.head_sha }}
+      run: ./.github/scripts/diff.ts

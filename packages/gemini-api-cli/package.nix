@@ -5,6 +5,7 @@
   fetchFromGitHub,
   installShellFiles,
   versionCheckHook,
+  nix-update-script,
 }:
 buildGo127Module (finalAttrs: {
   pname = "gemini-api-cli";
@@ -51,6 +52,8 @@ buildGo127Module (finalAttrs: {
 
   nativeInstallCheckInputs = [ versionCheckHook ];
   doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Experimental CLI for the Gemini API";

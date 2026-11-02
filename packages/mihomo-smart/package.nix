@@ -3,6 +3,7 @@
   buildGoModule,
   fetchFromGitHub,
   versionCheckHook,
+  nix-update-script,
 }:
 buildGoModule (finalAttrs: {
   pname = "mihomo-smart";
@@ -37,6 +38,14 @@ buildGoModule (finalAttrs: {
   nativeInstallCheckInputs = [ versionCheckHook ];
   doInstallCheck = true;
   versionCheckProgramArg = "-v";
+
+  passthru.updateScript = nix-update-script {
+    # 仅接受以 0 为基数的分支快照，忽略滚动发布和模型标签。
+    extraArgs = [
+      "--version=branch=Alpha"
+      "--version-regex=^(0-unstable-[0-9]{4}-[0-9]{2}-[0-9]{2})$"
+    ];
+  };
 
   meta = {
     description = "Rule-based tunnel with adaptive proxy selection";

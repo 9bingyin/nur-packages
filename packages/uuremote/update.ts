@@ -1,6 +1,6 @@
 #!/usr/bin/env nix
 /*
-#!nix shell nixpkgs#bun --command bun
+#! nix shell --inputs-from . nixpkgs#bun --command bun
 */
 /** Update UU Remote (aarch64-darwin) from NetEase's release redirect. */
 

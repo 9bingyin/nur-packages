@@ -1,0 +1,47 @@
+name: Cache
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: "51 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cache
+  cancel-in-progress: false
+
+jobs:
+  cache:
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    environment: binary-cache-auto
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+          - runner: macos-latest
+            system: aarch64-darwin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Nix Setup
+        uses: ./.github/actions/setup-nix
+      - name: Cache
+        uses: ./.github/actions/cache
+        with:
+          system: ${{ matrix.system }}

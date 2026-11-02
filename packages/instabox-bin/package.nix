@@ -8,6 +8,7 @@
   openssh,
   versionCheckHook,
   writableTmpDirAsHomeHook,
+  nix-update-script,
 }:
 let
   platform =
@@ -64,6 +65,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     "HOME"
     "INSTABOX_NO_TELEMETRY"
   ];
+
+  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Cloud box for your coding agent";

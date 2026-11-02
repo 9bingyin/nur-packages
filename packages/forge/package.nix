@@ -2,6 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
+  nix-update-script,
 }:
 buildGoModule rec {
   pname = "forge";
@@ -17,6 +18,8 @@ buildGoModule rec {
   vendorHash = "sha256-/wGFcszJHNzXlAtUAw7aSDneOhlW9pt4yjH/7P0Syp4=";
 
   subPackages = [ "cmd/forge" ];
+
+  passthru.updateScript = nix-update-script { };
 
   ldflags = [
     "-s"

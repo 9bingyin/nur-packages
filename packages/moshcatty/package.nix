@@ -2,6 +2,7 @@
   lib,
   rustPlatform,
   fetchFromGitHub,
+  nix-update-script,
 }:
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "moshcatty";
@@ -20,6 +21,13 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   # Upstream UDP/ECN tests need local networking inside the Darwin sandbox.
   __darwinAllowLocalNetworking = true;
+
+  passthru.updateScript = nix-update-script {
+    extraArgs = [
+      ''--version-regex=^moshcatty-([0-9]+\.[0-9]+\.[0-9]+)$''
+      "--use-github-releases"
+    ];
+  };
 
   meta = {
     description = "Pure Rust Mosh client for Netcatty";

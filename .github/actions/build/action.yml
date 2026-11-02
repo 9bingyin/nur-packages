@@ -1,0 +1,29 @@
+name: Build
+description: Build packages and metadata checks for one system
+inputs:
+  system:
+    description: Nix system to build
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Build
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        NIXPKGS_ALLOW_UNFREE: "1"
+        SYSTEM: ${{ inputs.system }}
+      run: |
+        set -euo pipefail
+        nix shell --inputs-from . nixpkgs#nix-fast-build --command \
+          nix-fast-build \
+          --flake "path:${GITHUB_WORKSPACE}#packages.${SYSTEM}" \
+          --systems "$SYSTEM" \
+          --skip-cached \
+          --eval-workers 1 \
+          --no-nom
+        nix build \
+          --no-link \
+          --no-write-lock-file \
+          ".#checks.${SYSTEM}.meta-maintainers" \
+          ".#checks.${SYSTEM}.package-metadata"

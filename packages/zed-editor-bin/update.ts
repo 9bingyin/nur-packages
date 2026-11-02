@@ -1,6 +1,6 @@
 #!/usr/bin/env nix
 /*
-#!nix shell nixpkgs#bun --command bun
+#! nix shell --inputs-from . nixpkgs#bun --command bun
 */
 /** Update Zed (aarch64-darwin) from Zed's stable release API. */
 

@@ -6,6 +6,7 @@
   stdenvNoCC,
   fetchurl,
   makeWrapper,
+  nix-update-script,
 }:
 
 stdenvNoCC.mkDerivation (finalAttrs: {
@@ -46,6 +47,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     runHook postInstall
   '';
+
+  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Telegram client with ghost mode and message history";

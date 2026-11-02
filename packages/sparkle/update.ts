@@ -1,6 +1,6 @@
 #!/usr/bin/env nix
 /*
-#!nix shell nixpkgs#bun --command bun
+#! nix shell --inputs-from . nixpkgs#bun --command bun
 */
 /** Update Sparkle and its bundled service with nix-update. */
 
@@ -28,6 +28,8 @@ function nixUpdate(...args: readonly string[]): void {
 	const command = [
 		"nix",
 		"run",
+		"--inputs-from",
+		ROOT,
 		"nixpkgs#nix-update",
 		"--",
 		"--flake",

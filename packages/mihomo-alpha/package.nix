@@ -2,6 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
+  nix-update-script,
 }:
 buildGoModule rec {
   pname = "mihomo-alpha";
@@ -32,6 +33,15 @@ buildGoModule rec {
   postInstall = ''
     mv "$out/bin/mihomo" "$out/bin/mihomo-alpha"
   '';
+
+  passthru.updateScript = nix-update-script {
+    # Prerelease-Alpha 是跟随 Alpha HEAD 移动的标签，不是版本基数。
+    # 仅接受以稳定版本为基数的快照版本，并去掉标签的 v 前缀。
+    extraArgs = [
+      "--version=branch=Alpha"
+      ''--version-regex=^v([0-9]+(?:\.[0-9]+)+-unstable-[0-9]{4}-[0-9]{2}-[0-9]{2})$''
+    ];
+  };
 
   meta = with lib; {
     description = "Alpha build of the rule-based tunnel Mihomo";

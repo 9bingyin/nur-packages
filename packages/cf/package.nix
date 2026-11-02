@@ -15,6 +15,7 @@
   moreutils,
   versionCheckHook,
   writableTmpDirAsHomeHook,
+  nix-update-script,
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "cf";
@@ -126,6 +127,14 @@ stdenv.mkDerivation (finalAttrs: {
     writableTmpDirAsHomeHook
   ];
   versionCheckKeepEnvironment = [ "HOME" ];
+
+  passthru.updateScript = nix-update-script {
+    extraArgs = [
+      "--version=unstable"
+      "--version-regex=^cf@(.*)$"
+      "--use-github-releases"
+    ];
+  };
 
   meta = {
     description = "Agentic CLI for the entire Cloudflare API";

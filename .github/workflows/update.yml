@@ -6,172 +6,67 @@ on:
   workflow_dispatch:
     inputs:
       packages:
-        description: "Specific packages to update, separated by spaces. Empty means all discoverable packages."
-        required: false
-        default: ""
-      inputs:
-        description: "Specific flake inputs to update, separated by spaces. Empty means all root inputs."
+        description: "Specific packages to update, separated by spaces. Empty means every package with an update script."
         required: false
         default: ""
 
 permissions: {}
 
 concurrency:
-  group: update-${{ github.ref }}
+  group: update
   cancel-in-progress: false
 
 jobs:
-  discover:
+  lock:
+    name: Lock Update
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
-    outputs:
-      batch-matrix: ${{ steps.discovery.outputs.batch-matrix }}
-      has-updates: ${{ steps.discovery.outputs.has-updates }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
-      - name: Reject flake-supplied Nix config
-        run: echo 'accept-flake-config = false' >> "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Nix Setup
+        uses: ./.github/actions/setup-nix
+      - name: Lock Update
+        uses: ./.github/actions/lock-update
         with:
-          bun-version: latest
-      - name: Discover
-        id: discovery
-        env:
-          PACKAGES: ${{ github.event.inputs.packages || '' }}
-          INPUTS: ${{ github.event.inputs.inputs || '' }}
-        run: bun ci/main.ts discovery
+          app_client_id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
+          app_private_key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
 
-  update:
-    needs: discover
-    if: needs.discover.outputs.has-updates == 'true'
-    name: ${{ matrix.group }}
+  package:
+    name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.discover.outputs.batch-matrix) }}
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+          - runner: macos-latest
+            system: aarch64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
-      - name: Reject flake-supplied Nix config
-        run: echo 'accept-flake-config = false' >> "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Nix Setup
+        uses: ./.github/actions/setup-nix
+      - name: Package Update
+        uses: ./.github/actions/package-update
         with:
-          bun-version: latest
-      - name: Prepare updates
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          INTERNET_ARCHIVE_ACCESS_KEY: ${{ secrets.INTERNET_ARCHIVE_ACCESS_KEY }}
-          INTERNET_ARCHIVE_SECRET_KEY: ${{ secrets.INTERNET_ARCHIVE_SECRET_KEY }}
-          UPDATE_BATCH: ${{ toJSON(matrix.targets) }}
-          UPDATE_BATCH_DIR: ${{ runner.temp }}/update-batch
-          UPDATE_CONCURRENCY: "4"
-          UPDATE_WORKTREE_DIR: ${{ runner.temp }}/update-worktrees
-        run: bun ci/main.ts prepare-update-batch
-      - name: Upload updates
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ runner.temp }}/update-batch
-          retention-days: 3
-          if-no-files-found: error
-
-  publish:
-    needs:
-      - discover
-      - update
-    if: always() && needs.discover.outputs.has-updates == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - name: Download updates
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          pattern: update-batch-*
-          path: ${{ runner.temp }}/update-batch
-          merge-multiple: true
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - name: Inspect updates
-        id: update
-        env:
-          UPDATE_BATCH_DIR: ${{ runner.temp }}/update-batch
-        run: bun ci/main.ts inspect-update-batch
-      - name: Create bot token
-        if: steps.update.outputs.changed == 'true'
-        id: app-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          client-id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-      - name: Get bot user
-        if: steps.update.outputs.changed == 'true'
-        id: bot-user
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-        run: |
-          echo "id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)" >>"$GITHUB_OUTPUT"
-      - name: Configure git
-        if: steps.update.outputs.changed == 'true'
-        env:
-          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-          BOT_USER_ID: ${{ steps.bot-user.outputs.id }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          git config user.name "${APP_SLUG}[bot]"
-          git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
-          gh auth setup-git
-      - name: Publish updates
-        if: steps.update.outputs.changed == 'true'
-        env:
-          AUTOMATION_BOT_USER_ID: ${{ steps.bot-user.outputs.id }}
-          BASE_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PR_LABELS: "dependencies,automated"
-          UPDATE_BATCH_DIR: ${{ runner.temp }}/update-batch
-        run: bun ci/main.ts publish-update-batch
-
-  summary:
-    needs:
-      - discover
-      - update
-      - publish
-    if: always() && needs.discover.outputs.has-updates == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Summary
-        run: |
-          {
-            echo "## Update"
-            echo
-            echo "- Discovery: \`${{ needs.discover.result }}\`"
-            echo "- Update batches: \`${{ needs.update.result }}\`"
-            echo "- Publish: \`${{ needs.publish.result }}\`"
-          } >>"$GITHUB_STEP_SUMMARY"
+          app_client_id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
+          app_private_key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          internet_archive_access_key: ${{ secrets.INTERNET_ARCHIVE_ACCESS_KEY }}
+          internet_archive_secret_key: ${{ secrets.INTERNET_ARCHIVE_SECRET_KEY }}
+          packages: ${{ github.event.inputs.packages || '' }}
+          system: ${{ matrix.system }}

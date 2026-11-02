@@ -10,6 +10,7 @@
   busybox,
   nftables,
   testers,
+  nix-update-script,
 }:
 buildGoModule (finalAttrs: {
   pname = "vocat";
@@ -92,6 +93,13 @@ buildGoModule (finalAttrs: {
     tests.version = testers.testVersion {
       package = finalAttrs.finalPackage;
       command = "vocat version";
+    };
+    updateScript = nix-update-script {
+      extraArgs = [
+        ''--version-regex=^v([0-9]+\.[0-9]+\.[0-9]+)$''
+        "--use-github-releases"
+        "--subpackage=web"
+      ];
     };
   };
 

@@ -1,0 +1,61 @@
+name: Package Update
+description: Run explicit update scripts and open pull requests
+inputs:
+  app_client_id:
+    description: Automation GitHub App client id
+    required: true
+  app_private_key:
+    description: Automation GitHub App private key
+    required: true
+  internet_archive_access_key:
+    description: Internet Archive access key used by the Termius update
+    required: false
+    default: ""
+  internet_archive_secret_key:
+    description: Internet Archive secret key used by the Termius update
+    required: false
+    default: ""
+  packages:
+    description: Space-separated package names; empty updates every package with an update script
+    required: false
+    default: ""
+  system:
+    description: Nix system to update
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Create bot token
+      id: app-token
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        client-id: ${{ inputs.app_client_id }}
+        private-key: ${{ inputs.app_private_key }}
+        permission-contents: write
+        permission-pull-requests: write
+    - name: Configure git
+      id: git
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        set -euo pipefail
+        bot_user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+        git config user.name "${APP_SLUG}[bot]"
+        git config user.email "${bot_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+        echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
+        gh auth setup-git
+    - name: Update packages
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        BOT_NAME: ${{ steps.git.outputs.name }}
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        INTERNET_ARCHIVE_ACCESS_KEY: ${{ inputs.internet_archive_access_key }}
+        INTERNET_ARCHIVE_SECRET_KEY: ${{ inputs.internet_archive_secret_key }}
+        PACKAGES: ${{ inputs.packages }}
+        SYSTEM: ${{ inputs.system }}
+      run: ./.github/scripts/package-update.ts

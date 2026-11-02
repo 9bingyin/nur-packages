@@ -1,15 +1,13 @@
-# NUR-compatible entrypoint. Flake outputs reuse this package set.
+# NUR entrypoint. Flake outputs reuse this package set.
 {
   pkgs ? import <nixpkgs> { },
 }:
 let
-  # Add repository packages to the callPackage scope so packages can depend on siblings.
   packages = pkgs.lib.filesystem.packagesFromDirectoryRecursive {
     directory = ./packages;
     callPackage = pkgs.newScope packages;
   };
-in
-{
+
   nixosModules = {
     usque = ./modules/nixos/usque.nix;
     vocat = ./modules/nixos/vocat.nix;
@@ -22,6 +20,28 @@ in
     synthesizer-v-studio-2-pro = ./modules/darwin/synthesizer-v-studio-2-pro.nix;
     uuremote = ./modules/darwin/uuremote.nix;
   };
-  overlays = import ./overlays;
+in
+packages
+// {
+  inherit
+    nixosModules
+    homeModules
+    darwinModules
+    ;
+  # Packages are built with the nixpkgs passed to this file. Flake's overlay
+  # imports this file with the consumer's nixpkgs before applying it.
+  overlays.default =
+    _final: _prev:
+    let
+      isSupportedPackage =
+        _name: package:
+        pkgs.lib.isDerivation package
+        && (
+          (package.meta.platforms or [ ]) == [ ]
+          || pkgs.lib.elem pkgs.stdenv.hostPlatform.system package.meta.platforms
+        );
+    in
+    {
+      nur-packages = pkgs.lib.filterAttrs isSupportedPackage packages;
+    };
 }
-// packages

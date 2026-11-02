@@ -1,0 +1,18 @@
+name: Nix Setup
+description: Install Nix with the repository binary cache
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+      with:
+        nix_conf: |
+          extra-substituters = https://cache.bingyin.org
+          extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
+          experimental-features = nix-command flakes
+          sandbox = true
+          allow-import-from-derivation = false
+          accept-flake-config = false
+    - name: Reject flake-supplied Nix config
+      shell: bash
+      run: echo 'accept-flake-config = false' >> "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"

@@ -13,18 +13,18 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
   };
 
   outputs =
     inputs:
     inputs.flake-parts.lib.mkFlake { inherit inputs; } (
       { lib, ... }:
-      let
-        systems = map (entry: entry.system) (builtins.fromJSON (builtins.readFile ./ci/systems.json));
-      in
       {
-        inherit systems;
+        systems = [
+          "x86_64-linux"
+          "aarch64-linux"
+          "aarch64-darwin"
+        ];
 
         imports = [ inputs.treefmt-nix.flakeModule ];
 
@@ -39,6 +39,29 @@
             nurPackages = lib.filterAttrs (
               _name: package: lib.isDerivation package && lib.meta.availableOn pkgs.stdenv.hostPlatform package
             ) nur;
+            visiblePackages = lib.filterAttrs (_name: lib.isDerivation) nurPackages;
+            requiredMetadata = [
+              "description"
+              "homepage"
+              "license"
+              "maintainers"
+              "mainProgram"
+            ];
+            isEvaluable = value: (builtins.tryEval (builtins.deepSeq value true)).success;
+            missingMetadata = lib.concatMap (
+              name:
+              let
+                package = visiblePackages.${name};
+              in
+              map (field: "${name}.meta.${field}") (
+                builtins.filter (
+                  field: !(package.meta ? ${field}) || !isEvaluable package.meta.${field}
+                ) requiredMetadata
+              )
+            ) (builtins.attrNames visiblePackages);
+            maintainersEvaluated = lib.mapAttrsToList (
+              _name: package: builtins.deepSeq (package.meta.maintainers or [ ]) true
+            ) visiblePackages;
           in
           {
             _module.args.pkgs = pkgs;
@@ -47,14 +70,23 @@
             packages = nurPackages;
 
             checks = {
-              package-metadata = import ./checks/package-metadata.nix {
-                inherit pkgs;
-                packages = config.packages;
-              };
-              meta-maintainers = import ./checks/meta-maintainers.nix {
-                inherit pkgs;
-                packages = config.packages;
-              };
+              package-metadata =
+                if missingMetadata != [ ] then
+                  throw "Packages must declare evaluable metadata: ${builtins.concatStringsSep ", " missingMetadata}"
+                else
+                  pkgs.runCommand "package-metadata-check" { } ''
+                    echo "All visible packages declare the required metadata"
+                    touch $out
+                  '';
+              meta-maintainers =
+                pkgs.runCommand "meta-maintainers-check"
+                  {
+                    inherit maintainersEvaluated;
+                  }
+                  ''
+                    echo "All package meta.maintainers evaluated successfully"
+                    touch $out
+                  '';
             }
             // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
               vocat = import ./checks/vocat.nix {
@@ -70,8 +102,7 @@
               programs.biome = {
                 enable = true;
                 includes = [
-                  "ci/*.json"
-                  "ci/*.ts"
+                  ".github/scripts/*.ts"
                   "packages/*/update.ts"
                 ];
               };
@@ -89,29 +120,22 @@
             };
           };
 
-        flake = {
-          overlays = {
-            default = import ./overlays/nur-packages.nix {
-              packages = inputs.self.packages;
+        flake =
+          let
+            modules = import ./default.nix {
+              pkgs = import inputs.nixpkgs {
+                system = "x86_64-linux";
+                config.allowUnfree = true;
+              };
             };
-            shared-nixpkgs = import ./overlays/shared-nixpkgs.nix;
+          in
+          {
+            overlays.default =
+              final: prev: (import ./default.nix { pkgs = final; }).overlays.default final prev;
+            nixosModules = modules.nixosModules;
+            homeModules = modules.homeModules;
+            darwinModules = modules.darwinModules;
           };
-
-          nixosModules = {
-            usque = import ./modules/nixos/usque.nix;
-            vocat = import ./modules/nixos/vocat.nix;
-          };
-
-          homeModules = {
-            helium = import ./modules/hm/helium.nix;
-          };
-
-          darwinModules = {
-            sparkle = import ./modules/darwin/sparkle.nix;
-            synthesizer-v-studio-2-pro = import ./modules/darwin/synthesizer-v-studio-2-pro.nix;
-            uuremote = import ./modules/darwin/uuremote.nix;
-          };
-        };
       }
     );
 }

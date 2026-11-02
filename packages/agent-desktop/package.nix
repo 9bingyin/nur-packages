@@ -13,6 +13,7 @@
   xvfb,
   util-linux,
   testers,
+  nix-update-script,
 }:
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "agent-desktop";
@@ -146,6 +147,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
     package = finalAttrs.finalPackage;
     command = "env HOME=$TMPDIR agent-desktop version";
   };
+
+  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Computer use for AI agents: read and operate desktop apps through the OS accessibility tree";

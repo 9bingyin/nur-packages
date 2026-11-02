@@ -1,3 +1,0 @@
---version-regex
-^v([0-9]+(?:\.[0-9]+)+)$
---use-github-releases

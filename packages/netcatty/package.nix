@@ -12,6 +12,7 @@
   makeWrapper,
   moshcatty,
   openssh,
+  nix-update-script,
 }:
 buildNpmPackage (finalAttrs: {
   pname = "netcatty";
@@ -136,6 +137,12 @@ buildNpmPackage (finalAttrs: {
 
   passthru = {
     inherit moshcatty;
+    updateScript = nix-update-script {
+      extraArgs = [
+        ''--version-regex=^v([0-9]+\.[0-9]+\.[0-9]+)$''
+        "--use-github-releases"
+      ];
+    };
   };
 
   meta = {

@@ -1,54 +1,73 @@
 name: Check
 
 on:
-  workflow_call:
-    inputs:
-      merged-repository:
-        required: true
-        type: string
-      merged-sha:
-        required: true
-        type: string
-      target-sha:
-        required: true
-        type: string
+  pull_request:
 
 permissions: {}
 
-defaults:
-  run:
-    shell: bash
+concurrency:
+  group: check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  ci:
+  check:
+    name: Check
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
-      - name: Checkout trusted
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Nix Setup
+        uses: ./.github/actions/setup-nix
+      - name: Check
+        uses: ./.github/actions/check
+        with:
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          head_ref: ${{ github.head_ref }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+
+  build:
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+          - runner: macos-latest
+            system: aarch64-darwin
+    steps:
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.target-sha }}
-          path: trusted
-      - name: Checkout untrusted
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Nix Setup
+        uses: ./.github/actions/setup-nix
+      - name: Build
+        uses: ./.github/actions/build
         with:
-          persist-credentials: false
-          repository: ${{ inputs.merged-repository }}
-          ref: ${{ inputs.merged-sha }}
-          path: untrusted
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - name: Install trusted dependencies
-        working-directory: trusted
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Link trusted dependencies
-        run: ln -s "$GITHUB_WORKSPACE/trusted/node_modules" "$GITHUB_WORKSPACE/untrusted/node_modules"
-      - name: Check CI
+          system: ${{ matrix.system }}
+
+  pass:
+    name: Pass
+    needs:
+      - check
+      - build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pass
         run: |
-          bun trusted/node_modules/typescript/bin/tsc \
-            --project untrusted/ci/tsconfig.json
-          bun test untrusted/ci/ci_test.ts
+          test "${{ needs.check.result }}" = success
+          test "${{ needs.build.result }}" = success

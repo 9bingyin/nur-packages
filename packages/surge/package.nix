@@ -3,6 +3,7 @@
   buildGoModule,
   fetchFromGitHub,
   versionCheckHook,
+  nix-update-script,
 }:
 buildGoModule rec {
   pname = "surge";
@@ -43,6 +44,10 @@ buildGoModule rec {
 
   nativeInstallCheckInputs = [ versionCheckHook ];
   doInstallCheck = true;
+
+  passthru.updateScript = nix-update-script {
+    extraArgs = [ "--version-regex=^v(.+)$" ];
+  };
 
   meta = with lib; {
     description = "Blazing fast TUI download manager built in Go";

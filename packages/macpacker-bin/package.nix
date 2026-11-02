@@ -4,6 +4,7 @@
   fetchurl,
   unzip,
   makeBinaryWrapper,
+  nix-update-script,
 }:
 
 stdenvNoCC.mkDerivation (finalAttrs: {
@@ -36,6 +37,13 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     runHook postInstall
   '';
+
+  passthru.updateScript = nix-update-script {
+    extraArgs = [
+      ''--version-regex=^v([0-9]+(?:\.[0-9]+)+)$''
+      "--use-github-releases"
+    ];
+  };
 
   meta = {
     description = "Archive manager and 7zip replacement for macOS";

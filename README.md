@@ -1,6 +1,6 @@
 # nur-packages
 
-[![Build Package Cache](https://github.com/9bingyin/nur-packages/actions/workflows/build-cache.yml/badge.svg)](https://github.com/9bingyin/nur-packages/actions/workflows/build-cache.yml)
+[![Cache](https://github.com/9bingyin/nur-packages/actions/workflows/cache.yml/badge.svg)](https://github.com/9bingyin/nur-packages/actions/workflows/cache.yml)
 
 二进制缓存：`https://cache.bingyin.org`
 

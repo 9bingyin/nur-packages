@@ -4,6 +4,7 @@
   fetchurl,
   makeWrapper,
   undmg,
+  nix-update-script,
 }:
 
 stdenvNoCC.mkDerivation (finalAttrs: {
@@ -36,6 +37,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     runHook postInstall
   '';
+
+  passthru.updateScript = nix-update-script { };
 
   meta = {
     description = "Zen is a firefox-based browser with the aim of pushing your productivity to a new level!";
