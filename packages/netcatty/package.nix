@@ -158,10 +158,7 @@ buildNpmPackage (finalAttrs: {
     ];
     mainProgram = "netcatty";
     # Darwin needs a separate .app bundle installation/signing path.
-    platforms = [
-      "x86_64-linux"
-      "aarch64-linux"
-    ];
+    platforms = lib.intersectLists lib.platforms.linux (lib.platforms.x86_64 ++ lib.platforms.aarch64);
     # Cursor SDK still bundles native binaries; rebuilding the addons is not enough
     # to remove binaryNativeCode. Re-audit SDK payloads if dependency packaging changes.
     sourceProvenance = with lib.sourceTypes; [

@@ -51,7 +51,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   passthru.updateScript = nix-update-script { };
 
   meta = {
-    description = "Telegram client with ghost mode and message history";
+    description = "Desktop Telegram client with good customization and Ghost mode";
     homepage = "https://github.com/AyuGram/AyuGramDesktop";
     changelog = "https://github.com/AyuGram/AyuGramDesktop/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.gpl3Only;
@@ -62,7 +62,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "ayugram-desktop";
-    platforms = [ "aarch64-darwin" ];
+    platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 })

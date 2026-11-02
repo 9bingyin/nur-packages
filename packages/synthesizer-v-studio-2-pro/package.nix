@@ -66,7 +66,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   meta = with lib; {
-    description = "The Industry-Standard Song & Vocal Production Software";
+    description = "Song and vocal production software";
     homepage = "https://dreamtonics.com/synthesizerv/";
     license = licenses.unfree;
     maintainers = [
@@ -76,7 +76,7 @@ stdenvNoCC.mkDerivation {
       }
     ];
     mainProgram = "synthv-studio-2-pro";
-    platforms = [ "aarch64-darwin" ];
+    platforms = platforms.darwin;
     sourceProvenance = [ sourceTypes.binaryNativeCode ];
   };
 }

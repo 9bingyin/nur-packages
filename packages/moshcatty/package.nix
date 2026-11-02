@@ -42,6 +42,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
     ];
     # This is a transport client, not the SSH-bootstrap `mosh` wrapper.
     mainProgram = "mosh-client";
-    platforms = lib.platforms.unix;
+    platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (
+      lib.platforms.x86_64 ++ lib.platforms.aarch64
+    );
   };
 })

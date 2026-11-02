@@ -46,7 +46,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "grok-bot";
-    platforms = [ "aarch64-darwin" ];
+    platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 })

@@ -134,7 +134,7 @@ stdenv.mkDerivation {
   passthru.updateScript = ./update.ts;
 
   meta = with lib; {
-    description = "Professional trading platform for stocks and financial instruments";
+    description = "Trading platform for stocks and financial instruments";
     homepage = "https://longbridge.com/";
     license = licenses.unfree;
     maintainers = [
@@ -143,10 +143,7 @@ stdenv.mkDerivation {
         github = "9bingyin";
       }
     ];
-    platforms = [
-      "x86_64-linux"
-      "aarch64-darwin"
-    ];
+    platforms = intersectLists platforms.linux platforms.x86_64 ++ platforms.darwin;
     sourceProvenance = with sourceTypes; [ binaryNativeCode ];
     mainProgram = "longbridge-desktop";
   };

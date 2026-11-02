@@ -53,7 +53,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   };
 
   meta = {
-    description = "Tiny native macOS launcher with hotkeys and clipboard history";
+    description = "Beta release of Tinycast, a native macOS launcher, hotkeys, and clipboard history";
     homepage = "https://github.com/abue-ammar/tinycast";
     changelog = "https://github.com/abue-ammar/tinycast/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.agpl3Only;
@@ -64,7 +64,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "tinycast";
-    platforms = [ "aarch64-darwin" ];
+    platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 })

@@ -151,10 +151,8 @@ stdenv.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "cf";
-    platforms = [
-      "x86_64-linux"
-      "aarch64-linux"
-      "aarch64-darwin"
-    ];
+    platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (
+      lib.platforms.x86_64 ++ lib.platforms.aarch64
+    );
   };
 })

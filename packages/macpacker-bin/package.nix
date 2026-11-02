@@ -57,7 +57,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "macpacker";
-    platforms = [ "aarch64-darwin" ];
+    platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 })

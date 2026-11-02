@@ -36,7 +36,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   passthru.updateScript = ./update.ts;
 
   meta = {
-    description = "OpenAI's official ChatGPT desktop app";
+    description = "Desktop application for ChatGPT";
     homepage = "https://chatgpt.com/";
     license = lib.licenses.unfree;
     maintainers = [
@@ -46,7 +46,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "chatgpt";
-    platforms = [ "aarch64-darwin" ];
+    platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 })

@@ -144,7 +144,7 @@ stdenvNoCC.mkDerivation {
   };
 
   meta = with lib; {
-    description = "A graphical client for Mihomo";
+    description = "Another Mihomo GUI";
     homepage = "https://github.com/xishang0128/sparkle";
     license = licenses.gpl3Only;
     maintainers = [
@@ -154,7 +154,7 @@ stdenvNoCC.mkDerivation {
       }
     ];
     mainProgram = "sparkle";
-    platforms = [ "aarch64-darwin" ];
+    platforms = platforms.darwin;
     sourceProvenance = with sourceTypes; [
       fromSource
       binaryNativeCode

@@ -54,5 +54,8 @@ buildGoModule rec {
       }
     ];
     mainProgram = "mihomo-alpha";
+    platforms = intersectLists (platforms.linux ++ platforms.darwin) (
+      platforms.x86_64 ++ platforms.aarch64
+    );
   };
 }

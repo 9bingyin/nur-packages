@@ -60,7 +60,7 @@ stdenvNoCC.mkDerivation {
       }
     ];
     mainProgram = "termius-app";
-    platforms = [ "aarch64-darwin" ];
+    platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 }

@@ -127,6 +127,6 @@ buildGoModule (finalAttrs: {
       }
     ];
     mainProgram = "vocat";
-    platforms = lib.platforms.linux;
+    platforms = lib.intersectLists lib.platforms.linux (lib.platforms.x86_64 ++ lib.platforms.aarch64);
   };
 })

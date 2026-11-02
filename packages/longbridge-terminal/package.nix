@@ -43,6 +43,8 @@ rustPlatform.buildRustPackage rec {
       }
     ];
     mainProgram = "longbridge";
-    platforms = platforms.unix;
+    platforms = intersectLists (platforms.linux ++ platforms.darwin) (
+      platforms.x86_64 ++ platforms.aarch64
+    );
   };
 }

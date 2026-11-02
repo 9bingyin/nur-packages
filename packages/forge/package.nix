@@ -38,6 +38,8 @@ buildGoModule rec {
       }
     ];
     mainProgram = "forge";
-    platforms = platforms.unix;
+    platforms = intersectLists (platforms.linux ++ platforms.darwin) (
+      platforms.x86_64 ++ platforms.aarch64
+    );
   };
 }

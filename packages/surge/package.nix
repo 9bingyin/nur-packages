@@ -50,7 +50,7 @@ buildGoModule rec {
   };
 
   meta = with lib; {
-    description = "Blazing fast TUI download manager built in Go";
+    description = "TUI download manager built in Go";
     homepage = "https://github.com/SurgeDM/Surge";
     license = licenses.mit;
     maintainers = [
@@ -60,6 +60,8 @@ buildGoModule rec {
       }
     ];
     mainProgram = "surge";
-    platforms = platforms.unix;
+    platforms = intersectLists (platforms.linux ++ platforms.darwin) (
+      platforms.x86_64 ++ platforms.aarch64
+    );
   };
 }

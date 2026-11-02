@@ -41,7 +41,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   passthru.updateScript = nix-update-script { };
 
   meta = {
-    description = "Zen is a firefox-based browser with the aim of pushing your productivity to a new level!";
+    description = "Firefox-based browser aimed at a calmer internet";
     homepage = "https://zen-browser.app/";
     changelog = "https://github.com/zen-browser/desktop/releases/tag/${finalAttrs.version}";
     license = lib.licenses.mpl20;

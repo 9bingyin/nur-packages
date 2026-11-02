@@ -79,11 +79,9 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       }
     ];
     mainProgram = "instabox";
-    platforms = [
-      "x86_64-linux"
-      "aarch64-linux"
-      "aarch64-darwin"
-    ];
+    platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (
+      lib.platforms.x86_64 ++ lib.platforms.aarch64
+    );
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 })
