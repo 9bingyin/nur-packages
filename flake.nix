@@ -1,50 +1,86 @@
 {
   description = "9bingyin's NUR package repository";
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
-    flake-parts = {
-      url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
-
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
   outputs =
-    inputs:
-    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+    { self, nixpkgs }:
+    let
+      lib = nixpkgs.lib;
       systems = [
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
       ];
-
-      imports = [ inputs.treefmt-nix.flakeModule ];
-
-      perSystem =
-        {
-          system,
-          pkgs,
-          lib,
-          config,
-          ...
-        }:
-        {
-          _module.args.pkgs = import inputs.nixpkgs {
+      eachSystem = lib.genAttrs systems (
+        system:
+        let
+          pkgs = import nixpkgs {
             inherit system;
             config.allowUnfree = true;
           };
-
-          legacyPackages = import ./default.nix { inherit pkgs; };
+          nur = import ./default.nix { inherit pkgs; };
           packages = lib.filterAttrs (
             _name: package: lib.isDerivation package && lib.meta.availableOn pkgs.stdenv.hostPlatform package
-          ) config.legacyPackages;
-
+          ) nur;
+          formatter = pkgs.treefmt.withConfig {
+            runtimeInputs = [
+              pkgs.biome
+              pkgs.gitMinimal
+              pkgs.nixfmt
+              pkgs.yamlfmt
+            ];
+            settings = {
+              on-unmatched = "info";
+              formatter = {
+                nixfmt = {
+                  command = "nixfmt";
+                  includes = [ "*.nix" ];
+                };
+                biome = {
+                  command = "biome";
+                  includes = [
+                    "*.js"
+                    "*.ts"
+                    "*.mjs"
+                    "*.mts"
+                    "*.cjs"
+                    "*.cts"
+                    "*.jsx"
+                    "*.tsx"
+                    "*.d.ts"
+                    "*.d.cts"
+                    "*.d.mts"
+                    "*.css"
+                  ];
+                  options = [
+                    "check"
+                    "--write"
+                    "--no-errors-on-unmatched"
+                    "--indent-style=space"
+                    "--indent-width=2"
+                    "--javascript-formatter-quote-style=single"
+                    "--semicolons=as-needed"
+                  ];
+                };
+                yamlfmt = {
+                  command = "yamlfmt";
+                  includes = [
+                    "*.yaml"
+                    "*.yml"
+                  ];
+                  options = [
+                    "-formatter"
+                    "retain_line_breaks=true"
+                  ];
+                };
+              };
+            };
+          };
+        in
+        {
+          legacyPackages = nur;
+          inherit packages formatter;
           checks = {
             package-metadata =
               let
@@ -58,7 +94,7 @@
                 missing = lib.concatMap (
                   name:
                   let
-                    package = config.packages.${name};
+                    package = packages.${name};
                   in
                   map (field: "${name}.meta.${field}") (
                     builtins.filter (
@@ -67,7 +103,7 @@
                       || !(builtins.tryEval (builtins.deepSeq package.meta.${field} true)).success
                     ) required
                   )
-                ) (builtins.attrNames config.packages);
+                ) (builtins.attrNames packages);
               in
               if missing != [ ] then
                 throw "Packages must declare evaluable metadata: ${builtins.concatStringsSep ", " missing}"
@@ -81,54 +117,34 @@
                 {
                   maintainersEvaluated = lib.mapAttrsToList (
                     _name: package: builtins.deepSeq (package.meta.maintainers or [ ]) true
-                  ) config.packages;
+                  ) packages;
                 }
                 ''
                   echo "All package meta.maintainers evaluated successfully"
                   touch $out
                 '';
+            treefmt = formatter.check self;
           }
           // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             vocat = import ./checks/vocat.nix {
               inherit pkgs;
-              package = config.packages.vocat;
+              package = packages.vocat;
             };
           };
-
-          treefmt = {
-            programs.nixfmt.enable = true;
-            programs.biome = {
-              enable = true;
-              excludes = [
-                "*.json"
-                "*.jsonc"
-              ];
-              settings = {
-                formatter = {
-                  indentStyle = "space";
-                  indentWidth = 2;
-                };
-                javascript.formatter = {
-                  quoteStyle = "single";
-                  semicolons = "asNeeded";
-                };
-              };
-            };
-            programs.yamlfmt = {
-              enable = true;
-              settings.formatter.retain_line_breaks = true;
-            };
-          };
-        };
-
-      flake = {
-        inherit (import ./modules)
-          nixosModules
-          homeModules
-          darwinModules
-          ;
-        overlays.default =
-          final: prev: (import ./default.nix { pkgs = final; }).overlays.default final prev;
-      };
+        }
+      );
+    in
+    {
+      inherit (import ./modules)
+        nixosModules
+        homeModules
+        darwinModules
+        ;
+      overlays.default =
+        final: prev: (import ./default.nix { pkgs = final; }).overlays.default final prev;
+      legacyPackages = lib.mapAttrs (_: value: value.legacyPackages) eachSystem;
+      packages = lib.mapAttrs (_: value: value.packages) eachSystem;
+      checks = lib.mapAttrs (_: value: value.checks) eachSystem;
+      formatter = lib.mapAttrs (_: value: value.formatter) eachSystem;
     };
 }
