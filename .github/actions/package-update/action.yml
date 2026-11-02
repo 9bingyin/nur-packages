@@ -47,6 +47,7 @@ runs:
         git config user.email "${bot_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
         echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
         gh auth setup-git
+        ./.github/scripts/configure-git-auth.sh
     - name: Update packages
       shell: bash
       working-directory: ${{ github.workspace }}
