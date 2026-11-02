@@ -20,41 +20,20 @@ let
     directory = ./packages;
     inherit callPackage;
   };
-
-  nixosModules = {
-    usque = ./modules/nixos/usque.nix;
-    vocat = ./modules/nixos/vocat.nix;
-  };
-  homeModules = {
-    helium = ./modules/hm/helium.nix;
-  };
-  darwinModules = {
-    sparkle = ./modules/darwin/sparkle.nix;
-    synthesizer-v-studio-2-pro = ./modules/darwin/synthesizer-v-studio-2-pro.nix;
-    uuremote = ./modules/darwin/uuremote.nix;
-  };
 in
 packages
+// import ./modules
 // {
-  inherit
-    nixosModules
-    homeModules
-    darwinModules
-    ;
   # Packages are built with the nixpkgs passed to this file. Flake's overlay
   # imports this file with the consumer's nixpkgs before applying it.
-  overlays.default =
-    _final: _prev:
-    let
-      isSupportedPackage =
-        _name: package:
-        pkgs.lib.isDerivation package
-        && (
-          (package.meta.platforms or [ ]) == [ ]
-          || pkgs.lib.elem pkgs.stdenv.hostPlatform.system package.meta.platforms
-        );
-    in
-    {
-      nur-packages = pkgs.lib.filterAttrs isSupportedPackage packages;
-    };
+  overlays.default = _final: _prev: {
+    nur-packages = pkgs.lib.filterAttrs (
+      _name: package:
+      pkgs.lib.isDerivation package
+      && (
+        (package.meta.platforms or [ ]) == [ ]
+        || pkgs.lib.elem pkgs.stdenv.hostPlatform.system package.meta.platforms
+      )
+    ) packages;
+  };
 }

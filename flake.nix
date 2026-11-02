@@ -17,125 +17,118 @@
 
   outputs =
     inputs:
-    inputs.flake-parts.lib.mkFlake { inherit inputs; } (
-      { lib, ... }:
-      {
-        systems = [
-          "x86_64-linux"
-          "aarch64-linux"
-          "aarch64-darwin"
-        ];
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
 
-        imports = [ inputs.treefmt-nix.flakeModule ];
+      imports = [ inputs.treefmt-nix.flakeModule ];
 
-        perSystem =
-          { system, config, ... }:
-          let
-            pkgs = import inputs.nixpkgs {
-              inherit system;
-              config.allowUnfree = true;
-            };
-            nur = import ./default.nix { inherit pkgs; };
-            nurPackages = lib.filterAttrs (
-              _name: package: lib.isDerivation package && lib.meta.availableOn pkgs.stdenv.hostPlatform package
-            ) nur;
-            visiblePackages = lib.filterAttrs (_name: lib.isDerivation) nurPackages;
-            requiredMetadata = [
-              "description"
-              "homepage"
-              "license"
-              "maintainers"
-              "mainProgram"
-            ];
-            isEvaluable = value: (builtins.tryEval (builtins.deepSeq value true)).success;
-            missingMetadata = lib.concatMap (
-              name:
+      perSystem =
+        {
+          system,
+          pkgs,
+          lib,
+          config,
+          ...
+        }:
+        {
+          _module.args.pkgs = import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+          };
+
+          legacyPackages = import ./default.nix { inherit pkgs; };
+          packages = lib.filterAttrs (
+            _name: package: lib.isDerivation package && lib.meta.availableOn pkgs.stdenv.hostPlatform package
+          ) config.legacyPackages;
+
+          checks = {
+            package-metadata =
               let
-                package = visiblePackages.${name};
-              in
-              map (field: "${name}.meta.${field}") (
-                builtins.filter (
-                  field: !(package.meta ? ${field}) || !isEvaluable package.meta.${field}
-                ) requiredMetadata
-              )
-            ) (builtins.attrNames visiblePackages);
-            maintainersEvaluated = lib.mapAttrsToList (
-              _name: package: builtins.deepSeq (package.meta.maintainers or [ ]) true
-            ) visiblePackages;
-          in
-          {
-            _module.args.pkgs = pkgs;
-
-            legacyPackages = nur;
-            packages = nurPackages;
-
-            checks = {
-              package-metadata =
-                if missingMetadata != [ ] then
-                  throw "Packages must declare evaluable metadata: ${builtins.concatStringsSep ", " missingMetadata}"
-                else
-                  pkgs.runCommand "package-metadata-check" { } ''
-                    echo "All visible packages declare the required metadata"
-                    touch $out
-                  '';
-              meta-maintainers =
-                pkgs.runCommand "meta-maintainers-check"
-                  {
-                    inherit maintainersEvaluated;
-                  }
-                  ''
-                    echo "All package meta.maintainers evaluated successfully"
-                    touch $out
-                  '';
-            }
-            // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-              vocat = import ./checks/vocat.nix {
-                inherit pkgs;
-                package = nur.vocat;
-              };
-            };
-
-            treefmt = {
-              projectRootFile = "flake.lock";
-              flakeCheck = false;
-
-              programs.biome = {
-                enable = true;
-                includes = [
-                  ".github/scripts/*.ts"
-                  "packages/*/update.ts"
+                required = [
+                  "description"
+                  "homepage"
+                  "license"
+                  "maintainers"
+                  "mainProgram"
                 ];
-              };
-              programs.nixfmt.enable = true;
-              programs.ruff-format.enable = true;
-              programs.shellcheck.enable = true;
-              programs.shfmt.enable = true;
-              programs.yamlfmt = {
-                enable = true;
-                settings.formatter = {
-                  retain_line_breaks_single = true;
-                  scan_folded_as_literal = true;
+                missing = lib.concatMap (
+                  name:
+                  let
+                    package = config.packages.${name};
+                  in
+                  map (field: "${name}.meta.${field}") (
+                    builtins.filter (
+                      field:
+                      !(package.meta ? ${field})
+                      || !(builtins.tryEval (builtins.deepSeq package.meta.${field} true)).success
+                    ) required
+                  )
+                ) (builtins.attrNames config.packages);
+              in
+              if missing != [ ] then
+                throw "Packages must declare evaluable metadata: ${builtins.concatStringsSep ", " missing}"
+              else
+                pkgs.runCommand "package-metadata-check" { } ''
+                  echo "All visible packages declare the required metadata"
+                  touch $out
+                '';
+            meta-maintainers =
+              pkgs.runCommand "meta-maintainers-check"
+                {
+                  maintainersEvaluated = lib.mapAttrsToList (
+                    _name: package: builtins.deepSeq (package.meta.maintainers or [ ]) true
+                  ) config.packages;
+                }
+                ''
+                  echo "All package meta.maintainers evaluated successfully"
+                  touch $out
+                '';
+          }
+          // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            vocat = import ./checks/vocat.nix {
+              inherit pkgs;
+              package = config.packages.vocat;
+            };
+          };
+
+          treefmt = {
+            programs.nixfmt.enable = true;
+            programs.biome = {
+              enable = true;
+              excludes = [
+                "*.json"
+                "*.jsonc"
+              ];
+              settings = {
+                formatter = {
+                  indentStyle = "space";
+                  indentWidth = 2;
+                };
+                javascript.formatter = {
+                  quoteStyle = "single";
+                  semicolons = "asNeeded";
                 };
               };
             };
-          };
-
-        flake =
-          let
-            modules = import ./default.nix {
-              pkgs = import inputs.nixpkgs {
-                system = "x86_64-linux";
-                config.allowUnfree = true;
-              };
+            programs.yamlfmt = {
+              enable = true;
+              settings.formatter.retain_line_breaks = true;
             };
-          in
-          {
-            overlays.default =
-              final: prev: (import ./default.nix { pkgs = final; }).overlays.default final prev;
-            nixosModules = modules.nixosModules;
-            homeModules = modules.homeModules;
-            darwinModules = modules.darwinModules;
           };
-      }
-    );
+        };
+
+      flake = {
+        inherit (import ./modules)
+          nixosModules
+          homeModules
+          darwinModules
+          ;
+        overlays.default =
+          final: prev: (import ./default.nix { pkgs = final; }).overlays.default final prev;
+      };
+    };
 }
