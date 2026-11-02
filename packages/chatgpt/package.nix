@@ -39,12 +39,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     description = "Desktop application for ChatGPT";
     homepage = "https://chatgpt.com/";
     license = lib.licenses.unfree;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "chatgpt";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

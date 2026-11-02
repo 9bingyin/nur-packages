@@ -150,12 +150,7 @@ buildNpmPackage (finalAttrs: {
     homepage = "https://github.com/binaricat/Netcatty";
     changelog = "https://github.com/binaricat/Netcatty/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.gpl3Plus;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "netcatty";
     # Darwin needs a separate .app bundle installation/signing path.
     platforms = lib.intersectLists lib.platforms.linux (lib.platforms.x86_64 ++ lib.platforms.aarch64);

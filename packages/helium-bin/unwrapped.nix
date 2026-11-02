@@ -172,12 +172,7 @@ stdenv.mkDerivation {
     description = "Privacy-first browser without distractions";
     homepage = "https://helium.computer";
     license = lib.licenses.gpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "helium";
     platforms = builtins.attrNames sources.linux.hashes ++ builtins.attrNames sources.darwin.hashes;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

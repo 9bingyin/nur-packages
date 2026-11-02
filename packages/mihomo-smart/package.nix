@@ -51,12 +51,7 @@ buildGoModule (finalAttrs: {
     description = "Rule-based tunnel with adaptive proxy selection";
     homepage = "https://github.com/vernesong/mihomo/tree/Alpha";
     license = lib.licenses.gpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "mihomo-smart";
     platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (
       lib.platforms.x86_64 ++ lib.platforms.aarch64

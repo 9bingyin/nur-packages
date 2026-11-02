@@ -66,12 +66,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://github.com/nekohasekai/open-screen-sharing";
     changelog = "https://github.com/nekohasekai/open-screen-sharing/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.gpl3Plus;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "open-screen-sharing";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

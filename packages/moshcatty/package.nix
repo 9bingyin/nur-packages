@@ -34,12 +34,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     homepage = "https://github.com/binaricat/MoshCatty";
     changelog = "https://github.com/binaricat/MoshCatty/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.gpl3Plus;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     # This is a transport client, not the SSH-bootstrap `mosh` wrapper.
     mainProgram = "mosh-client";
     platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (

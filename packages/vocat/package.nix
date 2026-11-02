@@ -120,12 +120,7 @@ buildGoModule (finalAttrs: {
     changelog = "https://github.com/MengMengCode/VoCat/releases/tag/v${finalAttrs.version}";
     # Vocat Research & Evaluation License 1.0.
     license = lib.licenses.unfree;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "vocat";
     platforms = lib.intersectLists lib.platforms.linux (lib.platforms.x86_64 ++ lib.platforms.aarch64);
   };

@@ -56,12 +56,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://www.macusb.app/";
     changelog = "https://github.com/Kruszoneq/macUSB/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.mit;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "macusb";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

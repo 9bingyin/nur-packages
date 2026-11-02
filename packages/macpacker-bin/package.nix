@@ -50,12 +50,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://macpacker.app/";
     changelog = "https://github.com/sarensw/MacPacker/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.gpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "macpacker";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

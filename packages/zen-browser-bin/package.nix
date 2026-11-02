@@ -45,12 +45,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://zen-browser.app/";
     changelog = "https://github.com/zen-browser/desktop/releases/tag/${finalAttrs.version}";
     license = lib.licenses.mpl20;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "zen";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

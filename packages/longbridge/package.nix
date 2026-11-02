@@ -137,12 +137,7 @@ stdenv.mkDerivation {
     description = "Trading platform for stocks and financial instruments";
     homepage = "https://longbridge.com/";
     license = licenses.unfree;
-    maintainers = [
-      {
-        name = "⑨bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     platforms = intersectLists platforms.linux platforms.x86_64 ++ platforms.darwin;
     sourceProvenance = with sourceTypes; [ binaryNativeCode ];
     mainProgram = "longbridge-desktop";

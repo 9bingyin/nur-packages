@@ -53,12 +53,7 @@ stdenvNoCC.mkDerivation {
     homepage = "https://termius.com/";
     downloadPage = "https://termius.com/download/macos";
     license = lib.licenses.unfree;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "termius-app";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

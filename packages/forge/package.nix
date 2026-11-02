@@ -31,12 +31,7 @@ buildGoModule rec {
     description = "CLI for working with GitHub, GitLab, Gitea/Forgejo, and Bitbucket Cloud";
     homepage = "https://github.com/git-pkgs/forge";
     license = licenses.mit;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "forge";
     platforms = intersectLists (platforms.linux ++ platforms.darwin) (
       platforms.x86_64 ++ platforms.aarch64

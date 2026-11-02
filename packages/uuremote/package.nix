@@ -82,12 +82,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://uuyc.163.com/";
     license = lib.licenses.unfree;
     mainProgram = "uuremote";
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };

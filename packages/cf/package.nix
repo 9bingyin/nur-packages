@@ -144,12 +144,7 @@ stdenv.mkDerivation (finalAttrs: {
       mit
       asl20
     ];
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "cf";
     platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (
       lib.platforms.x86_64 ++ lib.platforms.aarch64

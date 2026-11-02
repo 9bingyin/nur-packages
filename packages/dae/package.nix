@@ -60,12 +60,7 @@ buildGoModule (finalAttrs: {
     description = "Linux high-performance transparent proxy solution based on eBPF";
     homepage = "https://github.com/9bingyin/dae";
     license = lib.licenses.agpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "dae";
     platforms = lib.intersectLists lib.platforms.linux (lib.platforms.x86_64 ++ lib.platforms.aarch64);
   };

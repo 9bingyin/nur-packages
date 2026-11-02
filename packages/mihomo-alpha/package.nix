@@ -47,12 +47,7 @@ buildGoModule rec {
     description = "Alpha build of the rule-based tunnel Mihomo";
     homepage = "https://github.com/MetaCubeX/mihomo/tree/Alpha";
     license = licenses.gpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "mihomo-alpha";
     platforms = intersectLists (platforms.linux ++ platforms.darwin) (
       platforms.x86_64 ++ platforms.aarch64

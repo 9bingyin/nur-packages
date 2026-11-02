@@ -36,12 +36,7 @@ rustPlatform.buildRustPackage rec {
     description = "AI-native CLI for the Longbridge trading platform";
     homepage = "https://github.com/longbridge/longbridge-terminal";
     license = licenses.mit;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "longbridge";
     platforms = intersectLists (platforms.linux ++ platforms.darwin) (
       platforms.x86_64 ++ platforms.aarch64

@@ -3,9 +3,22 @@
   pkgs ? import <nixpkgs> { },
 }:
 let
+  lib = pkgs.lib.extend (
+    _final: prev: {
+      maintainers = prev.maintainers // import ./maintainers/maintainer-list.nix;
+    }
+  );
+
+  callPackage = pkgs.newScope (
+    packages
+    // {
+      inherit lib callPackage;
+    }
+  );
+
   packages = pkgs.lib.filesystem.packagesFromDirectoryRecursive {
     directory = ./packages;
-    callPackage = pkgs.newScope packages;
+    inherit callPackage;
   };
 
   nixosModules = {

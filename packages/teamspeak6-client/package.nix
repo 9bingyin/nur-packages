@@ -51,12 +51,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://teamspeak.com/";
     license = lib.licenses.teamspeak;
     mainProgram = "TeamSpeak";
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };

@@ -147,12 +147,7 @@ stdenvNoCC.mkDerivation {
     description = "Another Mihomo GUI";
     homepage = "https://github.com/xishang0128/sparkle";
     license = licenses.gpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "sparkle";
     platforms = platforms.darwin;
     sourceProvenance = with sourceTypes; [

@@ -39,12 +39,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     description = "xAI's official Grok Bot desktop app";
     homepage = "https://x.ai/bot";
     license = lib.licenses.unfree;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "grok-bot";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

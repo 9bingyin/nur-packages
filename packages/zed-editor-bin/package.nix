@@ -44,12 +44,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://zed.dev";
     changelog = "https://zed.dev/releases/stable/${finalAttrs.version}";
     license = lib.licenses.gpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "zeditor";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

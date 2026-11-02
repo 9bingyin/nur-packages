@@ -69,12 +69,7 @@ stdenvNoCC.mkDerivation {
     description = "Song and vocal production software";
     homepage = "https://dreamtonics.com/synthesizerv/";
     license = licenses.unfree;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "synthv-studio-2-pro";
     platforms = platforms.darwin;
     sourceProvenance = [ sourceTypes.binaryNativeCode ];

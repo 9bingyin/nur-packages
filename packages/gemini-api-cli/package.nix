@@ -60,12 +60,7 @@ buildGo127Module (finalAttrs: {
     homepage = "https://github.com/google-gemini/gemini-api-cli";
     changelog = "https://github.com/google-gemini/gemini-api-cli/releases/tag/${finalAttrs.src.tag}";
     license = lib.licenses.asl20;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "gemini-api";
     platforms = lib.intersectLists (lib.platforms.linux ++ lib.platforms.darwin) (
       lib.platforms.x86_64 ++ lib.platforms.aarch64

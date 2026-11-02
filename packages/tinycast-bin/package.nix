@@ -57,12 +57,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     homepage = "https://github.com/abue-ammar/tinycast";
     changelog = "https://github.com/abue-ammar/tinycast/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.agpl3Only;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "tinycast";
     platforms = lib.platforms.darwin;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

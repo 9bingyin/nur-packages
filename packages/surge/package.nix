@@ -53,12 +53,7 @@ buildGoModule rec {
     description = "TUI download manager built in Go";
     homepage = "https://github.com/SurgeDM/Surge";
     license = licenses.mit;
-    maintainers = [
-      {
-        name = "Bingyin";
-        github = "9bingyin";
-      }
-    ];
+    maintainers = [ lib.maintainers._9bingyin ];
     mainProgram = "surge";
     platforms = intersectLists (platforms.linux ++ platforms.darwin) (
       platforms.x86_64 ++ platforms.aarch64
