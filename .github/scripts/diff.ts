@@ -128,8 +128,7 @@ async function main(): Promise<void> {
       '--raw',
       '-z',
       '--no-renames',
-      baseSha,
-      headSha,
+      `${baseSha}...${headSha}`,
     ]),
   )
   const violation = diffViolation(policy, files)
