@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     await writeOidcToken(tokenPath, server)
     const refresh = refreshOidcToken(tokenPath, server, controller.signal)
     try {
-      const result = Bun.spawnSync(
+      const child = Bun.spawn(
         [
           'nix-fast-build',
           '--flake',
@@ -120,10 +120,9 @@ async function main(): Promise<void> {
           stdout: 'inherit',
         },
       )
-      if (result.exitCode !== 0) {
-        throw new Error(
-          `nix-fast-build failed with exit code ${result.exitCode}`,
-        )
+      const exitCode = await child.exited
+      if (exitCode !== 0) {
+        throw new Error(`nix-fast-build failed with exit code ${exitCode}`)
       }
     } finally {
       controller.abort()
