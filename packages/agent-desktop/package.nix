@@ -124,6 +124,9 @@ rustPlatform.buildRustPackage (finalAttrs: {
     "--skip=tests::list_apps_inventory_matches_the_platform"
   ]
   ++ lib.optionals stdenv.hostPlatform.isDarwin [
+    # Requires host app inventory and Accessibility-authorized processes.
+    "--skip=commands_never_reach_or_remove_a_command_host_socket"
+    "--skip=a_call_stops_marked_processes_under_any_name_and_leaves_others_running"
     # Inspects root-owned launchd children, which the sandbox cannot enumerate.
     "--skip=system::permissions::permission_guide::tests::the_host_walk_passes_through_a_process_of_another_user"
   ]
