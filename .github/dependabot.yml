@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    labels:
+      - Dependencies
+      - GitHub Actions
     groups:
       github-actions:
         patterns:

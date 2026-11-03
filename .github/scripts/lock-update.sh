@@ -17,7 +17,7 @@ fi
 if [[ -n $remote && -n ${BOT_NAME:-} ]]; then
   foreign="$(
     git log --format=%an "$remote" "^${base}" |
-      awk -v bot="$BOT_NAME" 'NF && $0 != bot && $0 != "mergify[bot]" { found = 1 } END { if (found) print "yes" }'
+      awk -v bot="$BOT_NAME" 'NF && $0 != bot && $0 != "kodiakhq[bot]" { found = 1 } END { if (found) print "yes" }'
   )"
   if [[ $foreign == yes ]]; then
     echo "Skipping update/lock because it contains manual changes"
@@ -37,6 +37,6 @@ if [[ -z $existing ]]; then
     --head update/lock \
     --title "flake.lock: update inputs" \
     --body "Automated update of flake inputs." \
-    --label dependencies \
-    --label automated
+    --label "Dependencies" \
+    --label "Auto Merge"
 fi

@@ -393,7 +393,7 @@ function remoteHead(branch: string): string | null {
   return runChecked(['git', 'rev-parse', 'FETCH_HEAD']).stdout.trim()
 }
 
-function foreignAuthors(
+export function foreignAuthors(
   remote: string,
   baseSha: string,
   botName: string,
@@ -408,7 +408,7 @@ function foreignAuthors(
     .stdout.split('\n')
     .map((name) => name.trim())
     .filter((name) => name !== '')
-  const allowed = new Set([botName, 'mergify[bot]'])
+  const allowed = new Set([botName, 'kodiakhq[bot]'])
   return names.some((name) => !allowed.has(name))
 }
 
@@ -472,9 +472,9 @@ function publish(
       '--body',
       body,
       '--label',
-      'dependencies',
+      'Package Update',
       '--label',
-      'automated',
+      'Auto Merge',
     ])
   }
   return true
