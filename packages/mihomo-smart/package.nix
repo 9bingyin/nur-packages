@@ -7,16 +7,16 @@
 }:
 buildGoModule (finalAttrs: {
   pname = "mihomo-smart";
-  version = "0-unstable-2026-10-30";
+  version = "0-unstable-2026-11-06";
 
   src = fetchFromGitHub {
     owner = "vernesong";
     repo = "mihomo";
-    rev = "77af4804d091d89b871c99b52d50915f4a600d81";
-    hash = "sha256-Q5GQ08/hig8SNxxhDnmNAZSUjTG9/d1kAgSxYUcOf8c=";
+    rev = "96feb2a175eb65b05ae2a60d222a279f90990695";
+    hash = "sha256-oYxZMDj7A79ifQwXuiqoLRCxksBtdCXSgXyFhY2G+uo=";
   };
 
-  vendorHash = "sha256-XTL/gKKOfsAnMkOU/Uc5Zk3Txvt8uZZlv1S7fPZpF+c=";
+  vendorHash = "sha256-YcFkGWwEkM43/kdPeyhQvAt62yemT6MS/Kn+AsMvfPg=";
 
   excludedPackages = [ "./test" ];
 
