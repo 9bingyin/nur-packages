@@ -6,16 +6,16 @@
 }:
 buildGoModule rec {
   pname = "forge";
-  version = "0.10.1";
+  version = "0.11.0";
 
   src = fetchFromGitHub {
     owner = "git-pkgs";
     repo = "forge";
     rev = "v${version}";
-    hash = "sha256-h4sJdNMopRjE8WmNrcClYxUUlchy2ZgRYsKLNAKDhZM=";
+    hash = "sha256-CrUwxTcDyMOcimIh5xya70F3pNe5qRkykQ/lSjW5tes=";
   };
 
-  vendorHash = "sha256-/wGFcszJHNzXlAtUAw7aSDneOhlW9pt4yjH/7P0Syp4=";
+  vendorHash = "sha256-yhoG6qRZ5v+lHzArb3GKjK95ZT/hqCYI1xrgs6hNf48=";
 
   subPackages = [ "cmd/forge" ];
 
