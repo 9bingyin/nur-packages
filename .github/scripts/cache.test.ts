@@ -46,6 +46,9 @@ describe('cache token refresh', () => {
           join(bin, 'nix-fast-build'),
           `#!${process.execPath}
 import { readFileSync, writeFileSync } from 'node:fs'
+if (!process.argv.includes('--no-nom') || !process.argv.includes('--no-fold')) {
+  throw new Error('build logs must be visible without folding')
+}
 const path = process.env.NIKS3_AUTH_TOKEN_FILE
 if (!path) throw new Error('missing token path')
 writeFileSync(process.env.TEST_TOKEN_PATH_LOG, path)

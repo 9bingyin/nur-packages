@@ -15,14 +15,15 @@ runs:
         SYSTEM: ${{ inputs.system }}
       run: |
         set -euo pipefail
-        nix shell --inputs-from . nixpkgs#nix-fast-build --command \
+        nix shell --print-build-logs --inputs-from . nixpkgs#nix-fast-build --command \
           nix-fast-build \
           --flake "path:${GITHUB_WORKSPACE}#packages.${SYSTEM}" \
           --systems "$SYSTEM" \
           --skip-cached \
-          --eval-workers 1 \
-          --no-nom
+          --no-nom \
+          --no-fold
         nix build \
+          --print-build-logs \
           --no-link \
           --no-write-lock-file \
           ".#checks.${SYSTEM}.meta-maintainers" \

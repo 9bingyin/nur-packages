@@ -121,24 +121,32 @@ function required(name: string): string {
 
 function run(
   args: readonly string[],
-  options: Readonly<{ cwd?: string; env?: NodeJS.ProcessEnv }> = {},
+  options: Readonly<{
+    cwd?: string
+    env?: NodeJS.ProcessEnv
+    stderr?: 'inherit'
+  }> = {},
 ): CommandResult {
   const result = Bun.spawnSync([...args], {
-    cwd: options.cwd,
-    env: options.env,
-    stderr: 'pipe',
+    cwd: options.cwd ?? process.cwd(),
+    env: options.env ?? process.env,
+    stderr: options.stderr ?? 'pipe',
     stdout: 'pipe',
   })
   return {
     exitCode: result.exitCode,
-    stderr: result.stderr.toString(),
+    stderr: result.stderr?.toString() ?? '',
     stdout: result.stdout.toString(),
   }
 }
 
 function runChecked(
   args: readonly string[],
-  options: Readonly<{ cwd?: string; env?: NodeJS.ProcessEnv }> = {},
+  options: Readonly<{
+    cwd?: string
+    env?: NodeJS.ProcessEnv
+    stderr?: 'inherit'
+  }> = {},
 ): CommandResult {
   const result = run(args, options)
   if (result.exitCode !== 0) {
@@ -358,8 +366,17 @@ function discover(
   packages: readonly string[],
 ): ReadonlyMap<string, UpdateScript | null> {
   const result = runChecked(
-    ['nix', 'eval', '--json', '--impure', '--expr', UPDATE_EXPRESSION],
+    [
+      'nix',
+      'eval',
+      '--print-build-logs',
+      '--json',
+      '--impure',
+      '--expr',
+      UPDATE_EXPRESSION,
+    ],
     {
+      stderr: 'inherit',
       env: {
         ...process.env,
         UPDATE_CONFIG: JSON.stringify({ packages, system }),
@@ -374,7 +391,9 @@ function realise(script: UpdateScript): readonly string[] {
     ...new Set(script.argv.flatMap(({ drvPaths }) => drvPaths)),
   ]
   if (derivations.length > 0) {
-    runChecked(['nix-store', '--realise', ...derivations])
+    runChecked(['nix-store', '--realise', ...derivations], {
+      stderr: 'inherit',
+    })
   }
   return script.argv.map(({ path }) => path)
 }
@@ -560,8 +579,14 @@ function updateOne(
     }
     const messages = changes.map(({ commitMessage }) => commitMessage)
     const version = run(
-      ['nix', 'eval', '--raw', `.#packages.${system}.${packageName}.version`],
-      { cwd: directory },
+      [
+        'nix',
+        'eval',
+        '--print-build-logs',
+        '--raw',
+        `.#packages.${system}.${packageName}.version`,
+      ],
+      { cwd: directory, stderr: 'inherit' },
     )
     const newVersion =
       version.exitCode === 0 ? version.stdout.trim() || 'unknown' : 'unknown'

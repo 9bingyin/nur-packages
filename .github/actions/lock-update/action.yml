@@ -36,7 +36,7 @@ runs:
     - name: Update lock
       shell: bash
       working-directory: ${{ github.workspace }}
-      run: nix flake update
+      run: nix flake update --print-build-logs
     - name: Open pull request
       shell: bash
       working-directory: ${{ github.workspace }}

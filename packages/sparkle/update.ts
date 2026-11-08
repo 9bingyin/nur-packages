@@ -28,6 +28,7 @@ function nixUpdate(...args: readonly string[]): void {
   const command = [
     'nix',
     'run',
+    '--print-build-logs',
     '--inputs-from',
     ROOT,
     'nixpkgs#nix-update',

@@ -3,6 +3,11 @@ description: Install Nix with the repository binary cache
 runs:
   using: composite
   steps:
+    - name: Free disk space
+      uses: wimpysworld/nothing-but-nix@b2574ec1cf1462bee0a34de0fb6ff11ad3c43cb2 # v12
+      with:
+        hatchet-protocol: carve
+        witness-carnage: true
     - name: Install Nix
       uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
       with:
@@ -10,6 +15,7 @@ runs:
           extra-substituters = https://cache.bingyin.org
           extra-trusted-public-keys = cache.bingyin.org-1:PU5qCuJfhYPKSIRdOMCndVB6Dn9rRRIRVZAnG2uAPSI=
           experimental-features = nix-command flakes
+          ${{ runner.os == 'Linux' && 'build-dir = /nix/build' || '' }}
           sandbox = true
           allow-import-from-derivation = false
           accept-flake-config = false
