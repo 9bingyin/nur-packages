@@ -19,7 +19,6 @@ jobs:
   cache:
     name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 360
     environment: binary-cache-auto
     permissions:
       contents: read

@@ -11,11 +11,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "open-screen-sharing-bin";
-  version = "1.0.4";
+  version = "1.0.6";
 
   src = fetchurl {
     url = "https://github.com/nekohasekai/open-screen-sharing/releases/download/v${finalAttrs.version}/OpenScreenSharing.pkg";
-    hash = "sha256-BO2nZdiTXTO4Hjwftm4VRdfYriylCiNz/f3eii20w9A=";
+    hash = "sha256-klwjhgh5SkR8GCNiqjdipUD5ywV5VUSGdZz07hhhyLE=";
   };
 
   nativeBuildInputs = [
@@ -46,9 +46,9 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook preInstall
 
     mkdir -p "$out/Applications" "$out/bin"
-    cp -R "Screen Sharing.app" "$out/Applications/"
+    cp -R "Open Screen Sharing.app" "$out/Applications/"
     makeWrapper \
-      "$out/Applications/Screen Sharing.app/Contents/MacOS/Screen Sharing" \
+      "$out/Applications/Open Screen Sharing.app/Contents/MacOS/Open Screen Sharing" \
       "$out/bin/open-screen-sharing"
 
     runHook postInstall
