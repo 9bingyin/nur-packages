@@ -46,9 +46,9 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook preInstall
 
     mkdir -p "$out/Applications" "$out/bin"
-    cp -R "Screen Sharing.app" "$out/Applications/"
+    cp -R "Open Screen Sharing.app" "$out/Applications/"
     makeWrapper \
-      "$out/Applications/Screen Sharing.app/Contents/MacOS/Screen Sharing" \
+      "$out/Applications/Open Screen Sharing.app/Contents/MacOS/Open Screen Sharing" \
       "$out/bin/open-screen-sharing"
 
     runHook postInstall
