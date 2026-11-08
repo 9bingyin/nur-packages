@@ -33,16 +33,16 @@ let
 
   sparkle-service = buildGoModule {
     pname = "sparkle-service";
-    version = "0-unstable-2026-10-23";
+    version = "0-unstable-2026-11-08";
 
     src = fetchFromGitHub {
       owner = "xishang0128";
       repo = "sparkle-service";
-      rev = "5b0a814ec66c5a8dbd3378e9d9bc21259f1b89be";
-      hash = "sha256-ZmGsExeVz4XOku3Pd0jxnEI8VXqTe0mAAaeCx1jLv34=";
+      rev = "22531bb484d39ffd9e4a712860acdb3e952ec4d8";
+      hash = "sha256-Qg+mNwb+3FfhPg0vRCcsj1XDwP39Fwc4ah/HW9MrV4s=";
     };
 
-    vendorHash = "sha256-nVCrc5x5TKW2G8X3wwuMQRfOWZ9WAXXgPUNzs/ypQlA=";
+    vendorHash = "sha256-RH+f6Bu62zRGLcjS8UKpZLHtrx+72auwRr5wdMnd2Lo=";
 
     meta.mainProgram = "sparkle-service";
   };
