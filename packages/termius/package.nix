@@ -6,8 +6,8 @@
   makeWrapper,
 }:
 let
-  version = "10.4.0";
-  waybackTimestamp = "20261104053927";
+  version = "10.4.1";
+  waybackTimestamp = "20261109033839";
 in
 stdenvNoCC.mkDerivation {
   pname = "termius";
@@ -15,7 +15,7 @@ stdenvNoCC.mkDerivation {
 
   src = fetchurl {
     url = "https://web.archive.org/web/${waybackTimestamp}if_/https://autoupdate.termius.com/mac-arm64/Termius.zip";
-    hash = "sha512-q+D2ND/kvKfIRzMTQc6JBQ0g2yajh4vgRIXAO+Sqok3or+JELM0lpfvUpMFNTbWiDNfl+AxOPoyuHonV0zd3rw==";
+    hash = "sha512-k34UnL4wuRHnqu64JWCLB+mE3rm+/0hJSX/J1jcM8RteGzWhY9Qh7rO7pLHoP6xoT3lfss0/CeCiPaQoSpdnLg==";
   };
 
   nativeBuildInputs = [
