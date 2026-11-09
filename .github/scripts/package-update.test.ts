@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { YAML } from 'bun'
 import {
   commandForUpdate,
   filesAllowed,
@@ -10,6 +17,30 @@ import {
   updateTitle,
   versionAccepted,
 } from './package-update.ts'
+
+describe('update authentication', () => {
+  test('separates app writes from read-only GitHub API requests', () => {
+    const action: unknown = YAML.parse(
+      readFileSync(
+        join(import.meta.dir, '../actions/package-update/action.yml'),
+        'utf8',
+      ),
+    )
+    expect(action).toMatchObject({
+      runs: {
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'Update packages',
+            env: expect.objectContaining({
+              GH_TOKEN: '${{ steps.app-token.outputs.token }}',
+              GITHUB_TOKEN: '${{ github.token }}',
+            }),
+          }),
+        ]),
+      },
+    })
+  })
+})
 
 describe('rewritePath', () => {
   test('maps flake store paths back to the worktree', () => {
