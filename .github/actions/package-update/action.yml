@@ -55,6 +55,7 @@ runs:
         BASE_BRANCH: ${{ github.event.repository.default_branch }}
         BOT_NAME: ${{ steps.git.outputs.name }}
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        GITHUB_TOKEN: ${{ github.token }}
         INTERNET_ARCHIVE_ACCESS_KEY: ${{ inputs.internet_archive_access_key }}
         INTERNET_ARCHIVE_SECRET_KEY: ${{ inputs.internet_archive_secret_key }}
         PACKAGES: ${{ inputs.packages }}
