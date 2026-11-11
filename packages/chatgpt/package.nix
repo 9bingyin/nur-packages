@@ -8,11 +8,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "chatgpt";
-  version = "26.1103.60933";
+  version = "26.1106.51428";
 
   src = fetchurl {
     url = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT-darwin-arm64-${finalAttrs.version}.zip";
-    hash = "sha256-HWced4Tg43n3KT68/qyCbCopdSTqgGzVXplAaNAZ44g=";
+    hash = "sha256-lZrarQqLjNAmXKGlODWvYYJ+Lq9ln9K9rXzjm3EvJXw=";
   };
 
   nativeBuildInputs = [
