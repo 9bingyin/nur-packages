@@ -2,6 +2,8 @@
   lib,
   rustPlatform,
   fetchFromGitHub,
+  pkg-config,
+  oniguruma,
   nix-update-script,
 }:
 rustPlatform.buildRustPackage rec {
@@ -16,6 +18,9 @@ rustPlatform.buildRustPackage rec {
   };
 
   cargoHash = "sha256-AZX+YVvLdzYUW2gzAgpTfht0nDXZj9LEtJkcb3DjcF4=";
+
+  nativeBuildInputs = [ pkg-config ];
+  buildInputs = [ oniguruma ];
 
   __darwinAllowLocalNetworking = true;
 
