@@ -5,7 +5,8 @@
   fetchFromGitHub,
   autoPatchelfHook,
   copyDesktopItems,
-  electron,
+  # Lockfile's node-abi only knows ABIs up to Electron 43.
+  electron_43,
   eternal-terminal,
   jq,
   makeDesktopItem,
@@ -70,7 +71,7 @@ buildNpmPackage (finalAttrs: {
     # Recheck prebuild locations when dependencies or their native loaders change.
     rm -rf node_modules/node-pty/prebuilds node_modules/@serialport/bindings-cpp/prebuilds
     # npmConfigHook sets Node headers unconditionally; override them after it runs.
-    export npm_config_nodedir=${electron.headers}
+    export npm_config_nodedir=${electron_43.headers}
 
     # Tagged sources still say 0.0.0; upstream release CI normally injects this.
     jq --arg version ${lib.escapeShellArg finalAttrs.version} '.version = $version' package.json > package.json.tmp
@@ -83,8 +84,8 @@ buildNpmPackage (finalAttrs: {
     node_modules/.bin/electron-builder \
       --config electron-builder.config.cjs \
       --linux --dir --publish=never \
-      -c.electronDist=${electron.dist} \
-      -c.electronVersion=${electron.version} \
+      -c.electronDist=${electron_43.dist} \
+      -c.electronVersion=${electron_43.version} \
       -c.npmRebuild=true \
       -c.buildDependenciesFromSource=true
   '';
@@ -107,7 +108,7 @@ buildNpmPackage (finalAttrs: {
       install -Dm644 "$icon" "$out/share/icons/hicolor/''${size%.png}/apps/netcatty.png"
     done
 
-    makeWrapper ${lib.getExe electron} "$out/bin/netcatty" \
+    makeWrapper ${lib.getExe electron_43} "$out/bin/netcatty" \
       --add-flags "$out/share/netcatty/app.asar" \
       --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-wayland-ime=true}}" \
       --prefix PATH : ${lib.makeBinPath [ openssh ]}
