@@ -12,11 +12,11 @@ buildGoModule (finalAttrs: {
   src = fetchFromGitHub {
     owner = "vernesong";
     repo = "mihomo";
-    rev = "f8257cef69a3ef442488dee808b452d4072b168d";
-    hash = "sha256-Tn84FfYb8vjyQYbYci7pIzwh11yvi0Po5PiCFgnsI8k=";
+    rev = "2e6fc107c403ca607714f1613a758e66f12d16e9";
+    hash = "sha256-nTrZ6hPCDSDhOYCv7HX9AGDtbxpPqA1ULZZtA+ttYCE=";
   };
 
-  vendorHash = "sha256-lE5r1QBef27+A+5HQeUqCve4I9wCvb8byv65mOGL+D8=";
+  vendorHash = "sha256-DQPwZEZP4nkgchafiPMdP4nd7oFR6U3O5tJTO8Lei4g=";
 
   excludedPackages = [ "./test" ];
 
