@@ -14,13 +14,13 @@
 }:
 buildGoModule (finalAttrs: {
   pname = "vocat";
-  version = "0.3.45";
+  version = "0.3.46";
 
   src = fetchFromGitHub {
     owner = "MengMengCode";
     repo = "VoCat";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-nf0rqAcsc6NN/NIgA9EuTGiIBlFJTXULBD1RA8pUYxU=";
+    hash = "sha256-8Croik5putjW5mBuRDyVK73pEobfdpyl4O8ilI1ZQF8=";
   };
 
   vendorHash = "sha256-lSyVsQ0noO+9Gmk9G+xQi4sPLdc8SrDZqZvT3fDxCT8=";
