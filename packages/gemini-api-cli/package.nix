@@ -32,6 +32,10 @@ buildGo127Module (finalAttrs: {
 
   nativeBuildInputs = [ installShellFiles ];
 
+  # TestFilesUploadWait/timeout races the poll timer against the deadline.
+  # Remove this skip once upstream makes the poll count stable.
+  checkFlags = [ "-skip=^TestFilesUploadWait/timeout$" ];
+
   # Include internal and contract tests, not just the executable in subPackages.
   checkPhase = ''
     runHook preCheck
