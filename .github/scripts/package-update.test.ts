@@ -7,12 +7,14 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { YAML } from 'bun'
 import {
   commandForUpdate,
+  FLAKE_PREFETCH_HOOK,
   filesAllowed,
   parseUpdateScripts,
+  pythonPathWithHook,
   rewritePath,
   updateTitle,
   versionAccepted,
@@ -217,6 +219,24 @@ exit ${exitCode}
       }
     },
   )
+})
+
+describe('flake prefetch hook', () => {
+  test('puts the hook ahead of an existing PYTHONPATH', () => {
+    expect(pythonPathWithHook(undefined, '/tmp/hook')).toBe('/tmp/hook')
+    expect(pythonPathWithHook('', '/tmp/hook')).toBe('/tmp/hook')
+    expect(pythonPathWithHook('/already', '/tmp/hook')).toBe(
+      `/tmp/hook${delimiter}/already`,
+    )
+  })
+
+  test('prefetches a missing flake store path before nix-update reads it', () => {
+    expect(FLAKE_PREFETCH_HOOK).toContain(
+      '["nix", "flake", "prefetch", "--json", import_path]',
+    )
+    expect(FLAKE_PREFETCH_HOOK).toContain('storePath')
+    expect(FLAKE_PREFETCH_HOOK).toContain('get_flake_store_path')
+  })
 })
 
 describe('commandForUpdate', () => {

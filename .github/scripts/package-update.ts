@@ -3,9 +3,9 @@
 #! nix shell --inputs-from . nixpkgs#bun --command bun
 */
 
-import { appendFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import process from 'node:process'
 
 type ChangedFile = Readonly<{
@@ -351,6 +351,66 @@ function commitChanges(
   })
 }
 
+// Nix 2.35 hashes a git flake in `nix flake metadata` without copying it.
+// nix-update 1.16 then passes that missing store path to builtins.getFlake.
+// Remove this hook once nix-update prefetches that path itself:
+// https://github.com/Mic92/nix-update/pull/692
+export const FLAKE_PREFETCH_HOOK = `import json
+import os
+import subprocess
+import builtins
+
+def _patch(module):
+    if getattr(module, "_nur_flake_prefetched", False):
+        return
+    original = module.get_flake_store_path
+
+    def get_flake_store_path(import_path):
+        store_path = original(import_path)
+        if isinstance(store_path, str) and store_path and not os.path.exists(store_path):
+            prefetch = subprocess.run(
+                ["nix", "flake", "prefetch", "--json", import_path],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            store_path = json.loads(prefetch.stdout)["storePath"]
+        return store_path
+
+    module.get_flake_store_path = get_flake_store_path
+    module._nur_flake_prefetched = True
+
+def _import(name, globals=None, locals=None, fromlist=(), level=0):
+    module = _real_import(name, globals, locals, fromlist, level)
+    if hasattr(module, "get_flake_store_path"):
+        _patch(module)
+    if fromlist:
+        for item in fromlist:
+            child = getattr(module, item, None)
+            if hasattr(child, "get_flake_store_path"):
+                _patch(child)
+    return module
+
+_real_import = builtins.__import__
+builtins.__import__ = _import
+`
+
+export function pythonPathWithHook(
+  current: string | undefined,
+  hookDirectory: string,
+): string {
+  if (current === undefined || current === '') {
+    return hookDirectory
+  }
+  return `${hookDirectory}${delimiter}${current}`
+}
+
+function installFlakePrefetchHook(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'nix-update-hook-'))
+  writeFileSync(join(directory, 'sitecustomize.py'), FLAKE_PREFETCH_HOOK)
+  return directory
+}
+
 // nix-update 1.16 only enables flakes with --flake. UPDATE_NIX_FLAKE=1 is kept
 // for newer releases, which also read that variable.
 export function commandForUpdate(argv: readonly string[]): readonly string[] {
@@ -507,6 +567,7 @@ function updateOne(
   baseSha: string,
   baseBranch: string,
   botName: string,
+  hookDirectory: string,
 ): void {
   const directory = mkdtempSync(join(tmpdir(), `update-${packageName}-`))
   try {
@@ -529,6 +590,7 @@ function updateOne(
       cwd: directory,
       env: {
         ...process.env,
+        PYTHONPATH: pythonPathWithHook(process.env.PYTHONPATH, hookDirectory),
         UPDATE_NIX_ATTR_PATH: script.attrPath,
         UPDATE_NIX_FLAKE: '1',
         UPDATE_NIX_NAME: script.name,
@@ -649,25 +711,39 @@ async function main(): Promise<void> {
   const scripts = discover(system, packages)
   const failures: string[] = []
   let considered = 0
-  for (const [name, script] of scripts) {
-    if (script === null) {
-      if (packages.includes(name)) {
-        failures.push(`${name}: no updateScript`)
+  const hookDirectory = installFlakePrefetchHook()
+  try {
+    for (const [name, script] of scripts) {
+      if (script === null) {
+        if (packages.includes(name)) {
+          failures.push(`${name}: no updateScript`)
+        }
+        continue
       }
-      continue
+      if (script.error !== undefined) {
+        failures.push(`${name}: ${script.error}`)
+        continue
+      }
+      considered += 1
+      try {
+        updateOne(
+          repository,
+          name,
+          script,
+          system,
+          baseSha,
+          baseBranch,
+          botName,
+          hookDirectory,
+        )
+      } catch (error) {
+        const message = `${name}: ${error instanceof Error ? error.message : String(error)}`
+        failures.push(message)
+        console.error(`::error::${message}`)
+      }
     }
-    if (script.error !== undefined) {
-      failures.push(`${name}: ${script.error}`)
-      continue
-    }
-    considered += 1
-    try {
-      updateOne(repository, name, script, system, baseSha, baseBranch, botName)
-    } catch (error) {
-      const message = `${name}: ${error instanceof Error ? error.message : String(error)}`
-      failures.push(message)
-      console.error(`::error::${message}`)
-    }
+  } finally {
+    rmSync(hookDirectory, { force: true, recursive: true })
   }
   const summary = [
     `## Package Update ${system}`,
