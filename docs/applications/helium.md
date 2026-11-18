@@ -1,12 +1,18 @@
 # Helium
 
-隐私向 Chromium 浏览器。支持 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin`。包名 `helium-bin`。
+Helium 是注重隐私的 Chromium 浏览器，包名 `helium-bin`。支持 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin`。
 
-`helium-bin.unwrapped` 是去掉 Nix 启动 wrapper 的二进制包，对应 nixpkgs 里 Chromium 的 unwrapped 包。覆盖 `commandLineArgs` 只会重建 wrapper。
+## 安装
 
-Linux 使用 `imputnet/helium-linux` 的归档，macOS 使用 `imputnet/helium-macos` 的 DMG。两平台独立更新，版本可以不同。`sources.json` 保存版本和各架构哈希。
+`helium-bin` 带 Nix 启动 wrapper。`helium-bin.unwrapped` 是去掉 wrapper 的二进制包，对应 nixpkgs 里 Chromium 的 unwrapped 包。覆盖 `commandLineArgs` 只会重建 wrapper。
 
-Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 偏好，并跳过首次 `helium://setup`。
+Linux 使用 `imputnet/helium-linux` 的归档，macOS 使用 `imputnet/helium-macos` 的 DMG。两个平台独立更新，版本可以不同。版本和各架构哈希写在 `packages/helium-bin/sources.json`。
+
+## 配置
+
+Home Manager 模块是 `homeModules.helium`。启用后会写入 Helium Services 偏好，并跳过首次打开 `helium://setup`。
+
+NixOS 和 nix-darwin 用 Home Manager 的 `sharedModules` 引入这个模块。
 
 ```nix
 { inputs, ... }:
@@ -20,14 +26,7 @@ Home Manager 模块：`homeModules.helium`。启用后会写入 Helium Services 
 }
 ```
 
-在 NixOS 和 nix-darwin 中，也可通过 Home Manager 的 `sharedModules` 引入模块。
-
-扩展、词典和 Native Messaging Host 使用以下配置目录：
-
-- Linux：`${xdg.configHome}/net.imput.helium`，默认 `~/.config/net.imput.helium`。
-- macOS：`~/Library/Application Support/net.imput.helium`。
-
-## 配置项
+### 配置项
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -75,6 +74,13 @@ programs.helium = {
 };
 ```
 
-`commandLineArgs` 对 `helium` 命令和 Linux 桌面启动器生效。macOS 的 Finder、Dock、Spotlight 直接启动应用，不使用这些参数。Home Manager 通过 `package.override { commandLineArgs = ...; }` 重建 wrapper，不会再包一层。自定义 `package` 必须接受这个参数。
+`commandLineArgs` 会传给 `helium` 命令和 Linux 桌面启动器。macOS 的 Finder、Dock 和 Spotlight 直接启动应用，不读这些参数。Home Manager 调用 `package.override { commandLineArgs = ...; }` 重建 wrapper，不再在外面加一层启动脚本。自定义 `package` 必须接受 `commandLineArgs`。
 
-Linux 包含桌面文件、图标、GTK/Qt 集成和运行库。在 Wayland 会话中设置 `NIXOS_OZONE_WL=1` 可启用原生后端。
+扩展、词典和 Native Messaging Host 使用以下配置目录：
+
+- Linux：`${xdg.configHome}/net.imput.helium`，默认 `~/.config/net.imput.helium`。
+- macOS：`~/Library/Application Support/net.imput.helium`。
+
+## 提示
+
+Linux 包包含桌面文件、图标、GTK/Qt 集成和运行库。Wayland 会话里把 `NIXOS_OZONE_WL` 设为 `1`，浏览器会使用 Wayland 后端。

@@ -1,13 +1,16 @@
-# NixOS 模块
+# Usque
 
-## usque
+Usque 是 Cloudflare WARP 的 MASQUE 客户端。软件包是 nixpkgs 的 `pkgs.usque`。本仓库提供 NixOS 模块 `nixosModules.usque`。
 
-Cloudflare WARP MASQUE 客户端。包来自 nixpkgs。
+## 配置
 
-自动注册会改 `/var/lib/usque/config.json`，这时必须 `acceptTerms = true`。已经手动放好有效配置时，可以不触发自动注册。
+自动注册会改 `/var/lib/usque/config.json`。这时必须 `acceptTerms = true`。已经手动放好有效配置时，可以不触发自动注册。
 
 ```nix
+{ inputs, ... }:
 {
+  imports = [ inputs.nur-packages.nixosModules.usque ];
+
   services.usque = {
     enable = true;
     acceptTerms = true;
@@ -19,6 +22,8 @@ Cloudflare WARP MASQUE 客户端。包来自 nixpkgs。
 ```
 
 ### 配置项
+
+这些选项都在 `services.usque` 下。
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -57,4 +62,6 @@ Cloudflare WARP MASQUE 客户端。包来自 nixpkgs。
 | `onDisconnect` | `null` | 断开后执行的脚本 |
 | `extraArgs` | `[]` | 追加原始 usque 参数 |
 
-`portfw` 至少要有一条 `localPorts` 或 `remotePorts`。`nativetun` 会拿 `CAP_NET_ADMIN`，只允许访问 `/dev/net/tun`。路由和 DNS 仍要自己配，需要时用 `onConnect` / `onDisconnect`。
+## 提示
+
+`portfw` 至少要写一条 `localPorts` 或 `remotePorts`。`nativetun` 模式下，模块给进程加上 `CAP_NET_ADMIN`，并只允许它打开 `/dev/net/tun`。路由和 DNS 要另外配置。需要挂钩子时用 `onConnect` 和 `onDisconnect`。
