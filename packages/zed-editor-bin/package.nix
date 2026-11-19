@@ -7,11 +7,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "zed-editor-bin";
-  version = "1.28.1";
+  version = "1.29.2";
 
   src = fetchurl {
     url = "https://zed.dev/api/releases/stable/${finalAttrs.version}/Zed-aarch64.dmg";
-    hash = "sha256-DKGk8eieOCX0mvJvoxr88Mw+UNofS6mInwc19fC+/+Q=";
+    hash = "sha256-Yvz3ba0N4htptYCPeFdvnAyobSMZrOk2Fr0a9lT6E20=";
   };
 
   nativeBuildInputs = [ _7zz ];
