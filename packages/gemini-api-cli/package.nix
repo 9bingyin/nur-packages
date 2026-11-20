@@ -9,13 +9,13 @@
 }:
 buildGo127Module (finalAttrs: {
   pname = "gemini-api-cli";
-  version = "0.4.6";
+  version = "0.5.0";
 
   src = fetchFromGitHub {
     owner = "google-gemini";
     repo = "gemini-api-cli";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-KwfjGWlDZaavmR+1KCSrBrYsdF6nudrN0D9QNpq0OU8=";
+    hash = "sha256-1exGixhlhXAKQlhPnfULurEoKtVS0h7lTb9HnTwYUJw=";
   };
 
   vendorHash = "sha256-3KlbZ+9OCH6rY4sMj6BEc4knA7BnhN7erET6Owy8GqM=";
