@@ -6,13 +6,13 @@
 }:
 buildGoModule rec {
   pname = "mihomo-alpha";
-  version = "1.19.34-unstable-2026-11-18";
+  version = "1.19.34-unstable-2026-11-20";
 
   src = fetchFromGitHub {
     owner = "MetaCubeX";
     repo = "mihomo";
-    rev = "2be2f0890978695637a61745ecb08b110d5e7719";
-    hash = "sha256-ewzl1fVCKrbd39ZvPaWECOE1Up5+n6HNdvDA2Hwzu9I=";
+    rev = "100ff73ae769c15562d6e174e88bf0da401ec4e2";
+    hash = "sha256-ijCkN4T//NOnVZZ9Zyc4eqHGYhwXTe/jzLWHVQWj7VU=";
   };
 
   vendorHash = "sha256-pfnzcaAcb9EVldEdyUkA8zKIeuC7aZcgyXzgl8jquzw=";
