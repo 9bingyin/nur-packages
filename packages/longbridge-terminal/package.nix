@@ -8,16 +8,16 @@
 }:
 rustPlatform.buildRustPackage rec {
   pname = "longbridge-terminal";
-  version = "0.31.2";
+  version = "0.32.0";
 
   src = fetchFromGitHub {
     owner = "longbridge";
     repo = "longbridge-terminal";
     rev = "v${version}";
-    hash = "sha256-qN+y3SkUA7pd2KlUh1YFqWbL8Rijz5bWYPT77jRjtM8=";
+    hash = "sha256-HWxit6i+KJ4RY0hIH1KaQpuvbshdNA1Z7PW9BeYhOtQ=";
   };
 
-  cargoHash = "sha256-AZX+YVvLdzYUW2gzAgpTfht0nDXZj9LEtJkcb3DjcF4=";
+  cargoHash = "sha256-1e70R/8IOVikhQ7knyo6IXVjQTZAr9TQZ68veyBe1WY=";
 
   nativeBuildInputs = [ pkg-config ];
   buildInputs = [ oniguruma ];
