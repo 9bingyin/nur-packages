@@ -11,8 +11,8 @@ buildGoModule rec {
   src = fetchFromGitHub {
     owner = "MetaCubeX";
     repo = "mihomo";
-    rev = "fc3bd70369129c2f28d9c8a248c1969d06f8983c";
-    hash = "sha256-0vJSUDaGimBYWiZTzWKiLChPcdbu79TAnp6Z8bdAfXc=";
+    rev = "c7af25cee0ef8f93b6922d9de4ba1b233ea0089c";
+    hash = "sha256-KN2emYtB8F9dSDwe+XEciYCAuLdCu61690yHCYGrXYg=";
   };
 
   vendorHash = "sha256-XPBhyxCjAqPwE/+ROLJzWA0LLGC3LSQBDJITcF5mPSM=";
