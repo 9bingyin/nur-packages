@@ -9,11 +9,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "macpacker-bin";
-  version = "1.3.0";
+  version = "1.3.1";
 
   src = fetchurl {
     url = "https://github.com/sarensw/MacPacker/releases/download/v${finalAttrs.version}/MacPacker_v${finalAttrs.version}.zip";
-    hash = "sha256-wXA5Bqw0pHeAoTcYeFwUlZq6cs3+zZxx0MCzwhiuy6s=";
+    hash = "sha256-/drsKZStkTOUxvJJDVwCz9Ez+bOvBgLUrcUlCQT378o=";
   };
 
   sourceRoot = ".";
