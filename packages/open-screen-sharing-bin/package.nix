@@ -11,11 +11,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "open-screen-sharing-bin";
-  version = "1.0.10";
+  version = "1.0.11";
 
   src = fetchurl {
     url = "https://github.com/nekohasekai/open-screen-sharing/releases/download/v${finalAttrs.version}/OpenScreenSharing.pkg";
-    hash = "sha256-OJfFuIniLXneEzC8nDuR6/p4qUmggZVNODMkR2aqFsg=";
+    hash = "sha256-EVVtj0jEWE5vFVJIaI0/RLvAMQzxzFt4oMA10Oe/ASE=";
   };
 
   nativeBuildInputs = [
