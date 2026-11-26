@@ -19,13 +19,13 @@
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "cf";
-  version = "1.0.0-rc.5";
+  version = "1.0.0-rc.6";
 
   src = fetchFromGitHub {
     owner = "cloudflare";
     repo = "cf";
     tag = "cf@${finalAttrs.version}";
-    hash = "sha256-jZinvZ4A5CuAVAf1/eBmNgB9oN1H3Ae8DW9w/3rJ8ZE=";
+    hash = "sha256-pgK3pTzociobzg6V44vtIqxrzuwPo7w/JweixKXKWyg=";
   };
 
   pnpmDeps = fetchPnpmDeps {
