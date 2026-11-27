@@ -8,8 +8,8 @@
   },
   "darwin": {
     "hashes": {
-      "aarch64-darwin": "sha256-MiolsE6dgiIH54reheLyTRTxvvQjOVEeBtBAHKN5XLI="
+      "aarch64-darwin": "sha256-fXgPOc9TLt0FVn0JhNc+Cyvy1Q/Lyd/JsLa0bhlEhLM="
     },
-    "version": "0.22.4.1"
+    "version": "0.22.5.1"
   }
 }
