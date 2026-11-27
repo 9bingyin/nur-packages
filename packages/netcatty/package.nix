@@ -17,20 +17,20 @@
 }:
 buildNpmPackage (finalAttrs: {
   pname = "netcatty";
-  version = "1.1.91";
+  version = "1.1.93";
 
   src = fetchFromGitHub {
     owner = "binaricat";
     repo = "Netcatty";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-X6y2X70Sv9Q0kCwbFKSPbHGsq92ZJKorClz+EFnz7fk=";
+    hash = "sha256-t/lQMpdoMxkGNTFwmElXObNHBgrcTb7QZ8HX4HALZw8=";
   };
 
   # Nix owns updates. Refresh this git-generated patch if the upstream update
   # bridge or its download/install IPC handlers change.
   patches = [ ./disable-auto-updates.patch ];
 
-  npmDepsHash = "sha256-X8duXzzHSFkwrq9pH6s3Nv7hSaamuLBkvdtSLTDgMIk=";
+  npmDepsHash = "sha256-hXVYeeZUhEUAhXAeGTfIRzHppteJ7Q6gqDeh1S1xifw=";
   # The root postinstall runs electron-builder. Defer lifecycle scripts so patches
   # are applied before the packaging step discovers and rebuilds native addons.
   npmRebuildFlags = [ "--ignore-scripts" ];
