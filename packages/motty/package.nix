@@ -14,6 +14,8 @@
   libxcb-cursor,
   pango,
   vulkan-loader,
+  xdg-utils,
+  zenity,
 }:
 let
   vivaSrc = fetchFromGitHub {
@@ -70,7 +72,13 @@ buildGoModule (finalAttrs: {
 
   postInstall = ''
     wrapProgram "$out/bin/motty" \
-      --suffix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs}
+      --suffix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs} \
+      --suffix PATH : ${
+        lib.makeBinPath [
+          xdg-utils
+          zenity
+        ]
+      }
 
     install -Dm644 assets/icon.png "$out/share/icons/hicolor/1024x1024/apps/motty.png"
     install -Dm644 assets/icon.svg "$out/share/icons/hicolor/scalable/apps/motty.svg"
