@@ -19,8 +19,8 @@ let
   vivaSrc = fetchFromGitHub {
     owner = "vivaui";
     repo = "viva";
-    rev = "467d79a8a53f251cf5d44d09b320739733af36c2";
-    hash = "sha256-PbJSU/GfQ0IEh+R6IBYoHgUnhDjw1eJnvx3fpCl37gQ=";
+    rev = "5847af799c3621380b108080d0bd49a057b77014";
+    hash = "sha256-KZSa7lbB216cBI/k9zEBYWXXCBqa8Hv+t2UZprRUGzE=";
   };
 
   runtimeLibs = [
@@ -37,16 +37,16 @@ let
 in
 buildGoModule (finalAttrs: {
   pname = "motty";
-  version = "0.4.41";
+  version = "0.4.42";
 
   src = fetchFromGitHub {
     owner = "t8y2";
     repo = "motty";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-FljwN6YKjfZxwy0Bn50DMyEHeKa80VZ7Khsp2UhsSLs=";
+    hash = "sha256-cfolZCMnVwHNlp5iFXGt0tL2ZHLFHndtdeKsyL5eGnE=";
   };
 
-  vendorHash = "sha256-TxwNG5ztnkEGfdz6LehhIbz1I8qJ9cr5FuvIfaKBZrc=";
+  vendorHash = "sha256-Hqga8Us80C7/yT7yzi2MfH2G4D5WSvUsyUVeW0UghlQ=";
 
   subPackages = [ "cmd/motty" ];
 
